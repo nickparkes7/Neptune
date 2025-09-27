@@ -1,0 +1,18 @@
+[
+  {
+    "scene_id": "S1A_IW_GRDH_1SDV_20240901T230000",
+    "acquired": "2024-09-01T23:00:00Z",
+    "platform": "S1A",
+    "polarizations": ["VV", "VH"],
+    "bbox": [-74.6, 40.3, -73.7, 41.1],
+    "path": "data/s1/processed/S1A_IW_GRDH_1SDV_20240901T230000_VV.tif"
+  },
+  {
+    "scene_id": "S1B_IW_GRDH_1SDV_20240903T111200",
+    "acquired": "2024-09-03T11:12:00Z",
+    "platform": "S1B",
+    "polarizations": ["VV", "VH"],
+    "bbox": [-74.2, 40.4, -73.4, 41.0],
+    "path": "data/s1/processed/S1B_IW_GRDH_1SDV_20240903T111200_VV.tif"
+  }
+]

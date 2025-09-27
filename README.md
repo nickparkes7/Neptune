@@ -48,10 +48,16 @@ uv sync
    uv run python tools/run_incident_pipeline.py data/ship/seaowl_sample.ndjson --pretty --flush-after 1800
    ```
 
-6. **Execute smoke tests** — validates the hybrid scorer, trigger wiring, and incident manager.
+6. **Task Sentinel-1 scenes** — filters the local catalog to the incident AOI/time window.
 
    ```cmd
-   uv run python -m unittest tests.test_hybrid_scorer tests.test_event_trigger tests.test_incident_manager tests.test_pipeline
+   uv run python src/satellite/tasker.py --bbox "-74.3,40.5,-73.5,41.2" --start 2024-09-01T00:00:00Z --end 2024-09-04T00:00:00Z --pretty
+   ```
+
+7. **Execute smoke tests** — validates the scorer, trigger wiring, incident manager, and tasker.
+
+   ```cmd
+   uv run python -m unittest tests.test_hybrid_scorer tests.test_event_trigger tests.test_incident_manager tests.test_pipeline tests.test_tasker
    ```
 
 ## Status Tracking

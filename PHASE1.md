@@ -5,7 +5,7 @@
 
 <!-- STATUS:PHASE1:BEGIN -->
 
-Progress: 4/12 steps done · 0 in progress · 0 blocked
+Progress: 5/12 steps done · 0 in progress · 0 blocked
 
 | Step | Status | Owner | Notes |
 | --- | --- | --- | --- |
@@ -13,7 +13,7 @@ Progress: 4/12 steps done · 0 in progress · 0 blocked
 | 2_simulator | done | nicholas | simulator emits NDJSON; parquet batches at data/ship/parquet |
 | 3_anomaly | done | nicholas | Hybrid oil alert implemented; plots in artifacts/hybrid; test=tests/test_hybrid_scorer.py |
 | 4_events | done | nicholas | End-to-end anomaly trigger: schema (src/anomaly/events.py), incident manager + pipeline (src/anomaly/incidents.py, src/anomaly/pipeline.py), CLI tools/run_event_trigger.py + tools/run_incident_pipeline.py; tests=test_event_trigger.py,test_incident_manager.py,test_pipeline.py |
-| 5_tasker | pending |  |  |
+| 5_tasker | done | nicholas | Sentinel-1 tasker module (src/satellite/tasker.py); catalog=configs/s1_catalog.json; CLI + tests=test_tasker.py |
 | 6_detector | pending |  |  |
 | 7_linking | pending |  |  |
 | 8_agent | pending |  |  |
@@ -132,7 +132,7 @@ Progress: 4/12 steps done · 0 in progress · 0 blocked
   - Extract VV (and VH if available) to cropped AOI windows using `rasterio.windows` and write to `data/s1/processed/<scene_id>_crop.tif` (COG optional for fast reads).
   - Cache scene metadata (ID, acquisition time, relative orbit, polarization) in `configs/s1_catalog.json` so reruns use local data if already present.
 - Acceptance
-  - Given AOI/time, returns scenes with valid bounds and timestamps from the downloaded catalog; `uv run src/satellite/tasker.py --smoke` downloads/caches when missing and exits cleanly when data already present.
+  - Given AOI/time, returns scenes with valid bounds and timestamps from the local catalog; CLI `uv run python src/satellite/tasker.py --bbox ... --start ... --end ...` emits the selected list.
 
 6) Slick Detector (dark-spot + morphology) (4.5–5.5h)
 - Files

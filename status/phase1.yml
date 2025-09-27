@@ -40,11 +40,12 @@ steps:
   artifacts: []
 - id: 5_tasker
   name: Sentinel-1 tasker (real fetch)
-  status: pending
-  owner: null
+  status: done
+  owner: nicholas
   started: null
-  finished: null
-  notes: null
+  finished: '2025-09-27T20:55:07Z'
+  notes: Sentinel-1 tasker module (src/satellite/tasker.py); catalog=configs/s1_catalog.json;
+    CLI + tests=test_tasker.py
   artifacts: []
 - id: 6_detector
   name: SAR slick detector
