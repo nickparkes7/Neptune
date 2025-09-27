@@ -22,11 +22,11 @@ steps:
   - artifacts/seaowl/seaowl_timeseries.png
 - id: 3_anomaly
   name: Anomaly scorer
-  status: in_progress
+  status: done
   owner: nicholas
   started: '2025-09-27T18:53:08Z'
-  finished: null
-  notes: null
+  finished: '2025-09-27T20:12:05Z'
+  notes: Hybrid oil alert implemented; plots in artifacts/hybrid; test=tests/test_hybrid_scorer.py
   artifacts: []
 - id: 4_events
   name: Event schema + trigger

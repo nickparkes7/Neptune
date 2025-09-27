@@ -5,13 +5,13 @@
 
 <!-- STATUS:PHASE1:BEGIN -->
 
-Progress: 2/12 steps done · 1 in progress · 0 blocked
+Progress: 3/12 steps done · 0 in progress · 0 blocked
 
 | Step | Status | Owner | Notes |
 | --- | --- | --- | --- |
 | 1_bootstrap | done | nicholas | uv environment + enforcement committed |
 | 2_simulator | done | nicholas | simulator emits NDJSON; parquet batches at data/ship/parquet |
-| 3_anomaly | in_progress | nicholas |  |
+| 3_anomaly | done | nicholas | Hybrid oil alert implemented; plots in artifacts/hybrid; test=tests/test_hybrid_scorer.py |
 | 4_events | pending |  |  |
 | 5_tasker | pending |  |  |
 | 6_detector | pending |  |  |
