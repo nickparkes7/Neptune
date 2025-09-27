@@ -5,14 +5,14 @@
 
 <!-- STATUS:PHASE1:BEGIN -->
 
-Progress: 3/12 steps done · 0 in progress · 0 blocked
+Progress: 4/12 steps done · 0 in progress · 0 blocked
 
 | Step | Status | Owner | Notes |
 | --- | --- | --- | --- |
 | 1_bootstrap | done | nicholas | uv environment + enforcement committed |
 | 2_simulator | done | nicholas | simulator emits NDJSON; parquet batches at data/ship/parquet |
 | 3_anomaly | done | nicholas | Hybrid oil alert implemented; plots in artifacts/hybrid; test=tests/test_hybrid_scorer.py |
-| 4_events | pending |  |  |
+| 4_events | done | nicholas | End-to-end anomaly trigger: schema (src/anomaly/events.py), incident manager + pipeline (src/anomaly/incidents.py, src/anomaly/pipeline.py), CLI tools/run_event_trigger.py + tools/run_incident_pipeline.py; tests=test_event_trigger.py,test_incident_manager.py,test_pipeline.py |
 | 5_tasker | pending |  |  |
 | 6_detector | pending |  |  |
 | 7_linking | pending |  |  |
@@ -108,6 +108,20 @@ Progress: 3/12 steps done · 0 in progress · 0 blocked
   - Publish in-process (function call) for MVP; no external broker needed.
 - Acceptance
   - Event dict validates; downstream receives the same object.
+
+4b) Incident Lifecycle Manager (debounce + heartbeat)
+- Files
+  - `src/anomaly/incidents.py` – `IncidentManager` state machine consolidating alert windows into a single active incident and managing lifecycle transitions.
+  - `tests/test_incident_manager.py` – scenarios covering continuous slick traversal, material updates, and re-arm after clear gaps.
+- How
+  - Merge contiguous or nearby alarm windows into one incident; extend duration, update stats, and grow the AOI envelope as the vessel moves.
+  - Gate new incident creation on both time-clear (`clear_hold_s`) and spatial separation (`rearm_distance_km`) to avoid thrash when sitting inside a slick.
+  - Emit paced transitions (`opened`, `updated`, `heartbeat`, `closed`) and expose cooldown knobs (e.g., tasking cooldown) so downstream components throttle heavy work.
+- Acceptance
+  - Long-duration alarm segments yield a single incident with periodic heartbeats instead of repeated opens.
+  - Incident only closes and re-arms after the configured clear gap and distance are exceeded.
+  - CLI `tools/run_incident_pipeline.py` produces lifecycle transitions from an NDJSON stream.
+  - Unit tests cover the transition behavior and cooldown settings.
 
 5) Satellite Tasker (Real S‑1 Fetch) (3.0–4.5h)
 - Files

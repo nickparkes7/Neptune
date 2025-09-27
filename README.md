@@ -36,10 +36,22 @@ uv sync
      --output artifacts/hybrid
    ```
 
-4. **Execute smoke tests** — validates the hybrid scorer against the sample stream.
+4. **Emit Suspected Spill events** — validates the trigger wiring and produces structured payloads for downstream steps.
 
    ```cmd
-  uv run python -m unittest tests.test_hybrid_scorer
+   uv run python tools/run_event_trigger.py data/ship/seaowl_sample.ndjson --pretty
+   ```
+
+5. **Run incident pipeline** — end-to-end scorer → event → lifecycle transitions with cooldown-aware state machine.
+
+   ```cmd
+   uv run python tools/run_incident_pipeline.py data/ship/seaowl_sample.ndjson --pretty --flush-after 1800
+   ```
+
+6. **Execute smoke tests** — validates the hybrid scorer, trigger wiring, and incident manager.
+
+   ```cmd
+   uv run python -m unittest tests.test_hybrid_scorer tests.test_event_trigger tests.test_incident_manager tests.test_pipeline
    ```
 
 ## Status Tracking

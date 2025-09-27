@@ -30,11 +30,13 @@ steps:
   artifacts: []
 - id: 4_events
   name: Event schema + trigger
-  status: pending
-  owner: null
-  started: null
-  finished: null
-  notes: null
+  status: done
+  owner: nicholas
+  started: '2025-09-27T20:14:03Z'
+  finished: '2025-09-27T20:21:08Z'
+  notes: 'End-to-end anomaly trigger: schema (src/anomaly/events.py), incident manager
+    + pipeline (src/anomaly/incidents.py, src/anomaly/pipeline.py), CLI tools/run_event_trigger.py
+    + tools/run_incident_pipeline.py; tests=test_event_trigger.py,test_incident_manager.py,test_pipeline.py'
   artifacts: []
 - id: 5_tasker
   name: Sentinel-1 tasker (real fetch)
