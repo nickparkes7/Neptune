@@ -1,102 +1,102 @@
 goals:
-  - Cheap continuous onboard sensing (SeaOWL synthetic)
-  - On-demand real Sentinel-1 for origin/propagation
-  - Agent-generated brief with actionable waypoints
-
+- Cheap continuous onboard sensing (SeaOWL synthetic)
+- On-demand real Sentinel-1 for origin/propagation
+- Agent-generated brief with actionable waypoints
 steps:
-  - id: 1_bootstrap
-    name: Bootstrap environment
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
-  - id: 2_simulator
-    name: SeaOWL simulator
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
-  - id: 3_anomaly
-    name: Anomaly scorer
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
-  - id: 4_events
-    name: Event schema + trigger
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
-  - id: 5_tasker
-    name: Sentinel-1 tasker (real fetch)
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
-  - id: 6_detector
-    name: SAR slick detector
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
-  - id: 7_linking
-    name: Temporal linking + drift
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
-  - id: 8_agent
-    name: Agent orchestration + tools
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
-  - id: 9_brief
-    name: Incident brief (JSON+PNG)
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
-  - id: 10_streamlit
-    name: Streamlit app
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
-  - id: 11_demo
-    name: E2E demo script + staging
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
-  - id: 12_qa
-    name: QA, metrics, tuning
-    status: pending
-    owner: 
-    started: 
-    finished: 
-    notes: 
-    artifacts: []
+- id: 1_bootstrap
+  name: Bootstrap environment
+  status: done
+  owner: nicholas
+  started: null
+  finished: '2025-09-27T18:05:53Z'
+  notes: uv environment + enforcement committed
+  artifacts: []
+- id: 2_simulator
+  name: SeaOWL simulator
+  status: done
+  owner: nicholas
+  started: '2025-09-27T18:05:55Z'
+  finished: '2025-09-27T18:14:58Z'
+  notes: simulator emits NDJSON; parquet batches at data/ship/parquet
+  artifacts:
+  - artifacts/seaowl/seaowl_timeseries.png
+- id: 3_anomaly
+  name: Anomaly scorer
+  status: pending
+  owner: null
+  started: null
+  finished: null
+  notes: null
+  artifacts: []
+- id: 4_events
+  name: Event schema + trigger
+  status: pending
+  owner: null
+  started: null
+  finished: null
+  notes: null
+  artifacts: []
+- id: 5_tasker
+  name: Sentinel-1 tasker (real fetch)
+  status: pending
+  owner: null
+  started: null
+  finished: null
+  notes: null
+  artifacts: []
+- id: 6_detector
+  name: SAR slick detector
+  status: pending
+  owner: null
+  started: null
+  finished: null
+  notes: null
+  artifacts: []
+- id: 7_linking
+  name: Temporal linking + drift
+  status: pending
+  owner: null
+  started: null
+  finished: null
+  notes: null
+  artifacts: []
+- id: 8_agent
+  name: Agent orchestration + tools
+  status: pending
+  owner: null
+  started: null
+  finished: null
+  notes: null
+  artifacts: []
+- id: 9_brief
+  name: Incident brief (JSON+PNG)
+  status: pending
+  owner: null
+  started: null
+  finished: null
+  notes: null
+  artifacts: []
+- id: 10_streamlit
+  name: Streamlit app
+  status: pending
+  owner: null
+  started: null
+  finished: null
+  notes: null
+  artifacts: []
+- id: 11_demo
+  name: E2E demo script + staging
+  status: pending
+  owner: null
+  started: null
+  finished: null
+  notes: null
+  artifacts: []
+- id: 12_qa
+  name: QA, metrics, tuning
+  status: pending
+  owner: null
+  started: null
+  finished: null
+  notes: null
+  artifacts: []

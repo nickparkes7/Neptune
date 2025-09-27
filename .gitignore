@@ -1,2 +1,18 @@
-docs/
-datasheets/
+# Python artifacts
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv/
+
+# Data outputs
+data/
+# docs/
+# datasheets/
+
+# Logs and artifacts
+artifacts/
+logs/
+
+# OS files
+.DS_Store

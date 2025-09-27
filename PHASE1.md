@@ -5,12 +5,12 @@
 
 <!-- STATUS:PHASE1:BEGIN -->
 
-Progress: 0/12 steps done · 0 in progress · 0 blocked
+Progress: 2/12 steps done · 0 in progress · 0 blocked
 
 | Step | Status | Owner | Notes |
 | --- | --- | --- | --- |
-| 1_bootstrap | pending |  |  |
-| 2_simulator | pending |  |  |
+| 1_bootstrap | done | nicholas | uv environment + enforcement committed |
+| 2_simulator | done | nicholas | simulator emits NDJSON; parquet batches at data/ship/parquet |
 | 3_anomaly | pending |  |  |
 | 4_events | pending |  |  |
 | 5_tasker | pending |  |  |

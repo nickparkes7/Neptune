@@ -9,6 +9,7 @@ This file defines persistent instructions for any agent working in this reposito
 - Use `uv` for Python env and execution (`uv venv`, `uv sync`, `uv run`).
 - Prefer minimal, focused changes; don’t refactor unrelated code.
 - Never invent data paths; use those declared in `PHASE1.md` and `configs/*`.
+- When sharing shell commands, use fenced code blocks (```cmd```) so they are easy to copy.
 
 ## Documentation Discipline
 
