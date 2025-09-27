@@ -8,8 +8,11 @@ This file defines persistent instructions for any agent working in this reposito
 - Keep `PHASE1.md` in sync by running `uv run tools/sync_phase1.py` after changes to `status/phase1.yml`.
 - Use `uv` for Python env and execution (`uv venv`, `uv sync`, `uv run`).
 - Prefer minimal, focused changes; don’t refactor unrelated code.
+- Do not keep legacy/dead code paths: remove superseded implementations instead of parking them in-tree.
+- Run the unit test suite after completing code changes; resolve any failures before considering the task finished.
 - Never invent data paths; use those declared in `PHASE1.md` and `configs/*`.
 - When sharing shell commands, use fenced code blocks (```cmd```) so they are easy to copy.
+- Visual-first updates: Nicholas strongly prefers charts and images; surface visual aids whenever possible during development to explain work.
 
 ## Documentation Discipline
 

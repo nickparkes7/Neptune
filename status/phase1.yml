@@ -22,9 +22,9 @@ steps:
   - artifacts/seaowl/seaowl_timeseries.png
 - id: 3_anomaly
   name: Anomaly scorer
-  status: pending
-  owner: null
-  started: null
+  status: in_progress
+  owner: nicholas
+  started: '2025-09-27T18:53:08Z'
   finished: null
   notes: null
   artifacts: []
