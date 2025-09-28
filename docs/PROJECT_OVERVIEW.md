@@ -80,7 +80,7 @@
 4. **Agent explains** – ask: “What happened at 13:42 near 36.78N, −122.1W?”
    - GPT-5 explains with metrics, confidence, and likely cause (oil-like or bloom-like).
 5. **Cerulean overlay** – agent shows returned polygons + source hints on the map; if no match, it explains the observational gap and schedules a recheck.
-6. **Actionables** – agent proposes 3 sampling waypoints + a short PDF/JSON incident brief; one‑click “Generate report.”
+6. **Actionables** – agent proposes 3 sampling waypoints + a JSON incident brief (downloadable in the Streamlit console).
 7. **Codex cameo** – you ask for a new plot (“contrast vs. wind speed” or “bbp vs. chlorophyll”), Codex writes it live.
 
 # 6) What we’ll build this week (checklist)

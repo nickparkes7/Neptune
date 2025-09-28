@@ -136,7 +136,7 @@ class RuleBasedAgentModel:
 class GPTAgentModel:
     """OpenAI GPT-5 powered agent model implementation."""
 
-    model_name: str = "gpt-5-mini"
+    model_name: str = "gpt-5"
     temperature: float = 1.0
     max_retries: int = 2
     api_key_env: str = "OPENAI_API_KEY"

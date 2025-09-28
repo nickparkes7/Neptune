@@ -81,11 +81,11 @@ steps:
   artifacts: []
 - id: 10_streamlit
   name: Streamlit app
-  status: pending
-  owner: null
-  started: null
-  finished: null
-  notes: null
+  status: done
+  owner: nicholas
+  started: '2025-09-28T00:28:00Z'
+  finished: '2025-09-28T00:33:30Z'
+  notes: Streamlit incident console at apps/incident_console.py; maps, timeseries, synopsis, JSON brief download
   artifacts: []
 - id: 11_demo
   name: E2E demo script + staging

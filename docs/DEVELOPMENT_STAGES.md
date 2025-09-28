@@ -52,8 +52,9 @@ Below is a tight, staged build that gets you a slick MVP quickly and then layers
 
 - **Map:** live ship track, SeaOWL anomaly markers, Cerulean polygons (only after trigger).
 - **Timeseries:** oil-fluor signal + context channels.
-- **Incident pane:** scenario, confidence, summary, waypoints; shows scheduled follow‑up when first‑discovery.
+- **Incident pane:** scenario, confidence, summary, waypoints; shows scheduled follow-up when first-discovery.
 - **Chat (GPT-5):** “Explain this event,” “show most likely source area,” “propose 3 sampling stops in the next 2 hrs.”
+- **Implementation:** `uv run streamlit run apps/incident_console.py` runs the incident console built with Streamlit + PyDeck; supports toggling GPT-5 vs rule-based agent, shows JSON brief download.
 
 ## Why this nails your narrative
 

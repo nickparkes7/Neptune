@@ -71,6 +71,14 @@ uv run python tools/run_agent.py tests/data/sample_event.json --artifact-root ar
 
 > `tools/load_env.py` automatically loads `.env` for most entry points. When running custom scripts, call it before constructing the agent if needed.
 
+9. **Launch Streamlit incident console** — explore telemetry, maps, and agent output interactively.
+
+```cmd
+uv run streamlit run apps/incident_console.py
+```
+
+The sidebar lets you pick a SeaOWL stream, toggle GPT-5 (falls back to the rule-based agent if `OPENAI_API_KEY` is missing), and run the pipeline on demand. The app visualises timeseries data, Cerulean overlays, incident synopsis, and offers a download button for the JSON brief.
+
 ## Cerulean Follow-ups
 
 - Scheduled re-query tasks are stored at `data/cerulean/followups.ndjson` (see `configs/cerulean.yml`).
