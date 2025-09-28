@@ -6,7 +6,7 @@
 
 <!-- STATUS:PHASE1:BEGIN -->
 
-Progress: 7/12 steps done · 0 in progress · 0 blocked
+Progress: 8/12 steps done · 0 in progress · 0 blocked
 
 | Step | Status | Owner | Notes |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Progress: 7/12 steps done · 0 in progress · 0 blocked
 | 5_tasker | done | nicholas | Sentinel-1 tasker module (src/satellite/tasker.py); catalog=configs/s1_catalog.json; CLI + tests=test_tasker.py |
 | 6_detector | done | nicholas | Cerulean client + overlay helpers, summary metrics, tests |
 | 7_linking | done | nicholas | Follow-up scheduler (JSONL log, due queries, tests) |
-| 8_agent | pending |  |  |
+| 8_agent | done | nicholas | GPT-5 agent schemas, runner, CLI, tests |
 | 9_brief | pending |  |  |
 | 10_streamlit | pending |  |  |
 | 11_demo | pending |  |  |

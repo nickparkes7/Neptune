@@ -59,7 +59,10 @@ class CeruleanSlick(CompatBaseModel):
 
     class Config:
         arbitrary_types_allowed = True
-        json_encoders = {BaseGeometry: mapping}
+        json_encoders = {
+            BaseGeometry: mapping,
+            datetime: lambda dt: dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
 
     @classmethod
     def from_feature(cls, feature: Mapping[str, Any]) -> "CeruleanSlick":
@@ -150,7 +153,7 @@ def build_feature_collection(slicks: Sequence[CeruleanSlick]) -> Dict[str, Any]:
 
     features: List[Dict[str, Any]] = []
     for slick in slicks:
-        props = slick.model_dump(exclude={"geometry"})
+        props = slick.model_dump(exclude={"geometry"}, mode="json")
         features.append(
             {
                 "type": "Feature",

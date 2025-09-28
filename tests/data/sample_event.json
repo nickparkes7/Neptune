@@ -1,0 +1,29 @@
+{
+  "event_id": "test-event",
+  "ts_start": "2024-06-01T12:00:00Z",
+  "ts_end": "2024-06-01T12:10:00Z",
+  "ts_peak": "2024-06-01T12:05:00Z",
+  "lat": 40.7,
+  "lon": -74.0,
+  "duration_s": 600.0,
+  "sample_count": 600,
+  "platform_id": "vessel-001",
+  "sensor_id": "seaowl-01",
+  "oil_stats": {
+    "min": 0.02,
+    "max": 0.15,
+    "mean": 0.08,
+    "median": 0.07,
+    "max_z": 2.4,
+    "mean_z": 1.8
+  },
+  "context_channels": {
+    "chlorophyll_ug_per_l": {
+      "min": 0.5,
+      "max": 0.7,
+      "mean": 0.6,
+      "median": 0.6
+    }
+  },
+  "aoi_bbox": [-74.1, 40.6, -73.9, 40.8]
+}

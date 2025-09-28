@@ -6,7 +6,7 @@
 
 <!-- STATUS:PHASE1:BEGIN -->
 
-Progress: 7/12 steps done · 0 in progress · 0 blocked
+Progress: 8/12 steps done · 0 in progress · 0 blocked
 
 | Step | Status | Owner | Notes |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Progress: 7/12 steps done · 0 in progress · 0 blocked
 | 5_tasker | done | nicholas | Sentinel-1 tasker module (src/satellite/tasker.py); catalog=configs/s1_catalog.json; CLI + tests=test_tasker.py |
 | 6_detector | done | nicholas | Cerulean client + overlay helpers, summary metrics, tests |
 | 7_linking | done | nicholas | Follow-up scheduler (JSONL log, due queries, tests) |
-| 8_agent | pending |  |  |
+| 8_agent | done | nicholas | GPT-5 agent schemas, runner, CLI, tests |
 | 9_brief | pending |  |  |
 | 10_streamlit | pending |  |  |
 | 11_demo | pending |  |  |
@@ -51,15 +51,20 @@ Progress: 7/12 steps done · 0 in progress · 0 blocked
 
 ## Outcomes
 
-- Detect oil-like anomalies from SeaOWL at 1 Hz, trigger a real Sentinel‑1 fetch via web API, outline slick polygons, summarize origin/propagation, generate a JSON brief (+PNG snapshots; PDF optional), and visualize in Streamlit.
+- Detect oil-like anomalies from SeaOWL at 1 Hz, query Cerulean for context, overlay polygons + source hints when available, characterize first‑discovery cases with onboard data only (and schedule a re‑query), generate a JSON brief (+PNG snapshots; PDF optional), and visualize in Streamlit.
 
 ## Definition of Done
 
 - Live/simulated SeaOWL stream triggers an alert.
-- Sentinel‑1 stack downloaded for the AOI/time window (real rasters).
-- Slick polygons detected and linked across passes, with drift vector.
-- Streamlit shows timeseries, map overlays, and incident pane.
-- Agent tools produce a coherent “incident brief” (JSON + PNG; PDF if time permits).
+- Cerulean query returns zero or more slicks; if zero, a follow‑up is scheduled for the next model refresh.
+- Streamlit shows timeseries, map overlays (Cerulean polygons when present), and an incident pane.
+- Agent tools produce a coherent “incident synopsis/brief” (JSON + PNG; PDF if time permits).
+
+## Step 8 — Agent Orchestration (GPT‑5)
+
+- Inputs: `SuspectedSpillEvent` with AOI/time; policy knobs (min source score, AOI padding bounds, result limit).
+- Behavior: GPT‑5 selects query parameters, calls Cerulean client, synthesizes evidence into a typed `IncidentSynopsis` with scenario + confidence, and schedules a follow‑up when first‑discovery.
+- Artifacts under `artifacts/<event_id>/`: `cerulean.geojson`, `cerulean_summary.json`, `incident_synopsis.json`, and an action trace (`agent_trace.jsonl`).
 
 ## Repo Setup
 
