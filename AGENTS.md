@@ -11,6 +11,7 @@ This file defines persistent instructions for any agent working in this reposito
 - Do not keep legacy/dead code paths: remove superseded implementations instead of parking them in-tree.
 - Run the unit test suite after completing code changes; resolve any failures before considering the task finished.
 - Never invent data paths; use those declared in `PHASE1.md` and `configs/*`.
+- If you are uncertain about implementation details, do not assume; ask for guidance before proceeding.
 - When sharing shell commands, use fenced code blocks (```cmd```) so they are easy to copy.
 - Visual-first updates: Nicholas strongly prefers charts and images; surface visual aids whenever possible during development to explain work.
 

@@ -6,7 +6,7 @@
 
 <!-- STATUS:PHASE1:BEGIN -->
 
-Progress: 5/12 steps done · 0 in progress · 0 blocked
+Progress: 6/12 steps done · 0 in progress · 0 blocked
 
 | Step | Status | Owner | Notes |
 | --- | --- | --- | --- |
@@ -15,7 +15,7 @@ Progress: 5/12 steps done · 0 in progress · 0 blocked
 | 3_anomaly | done | nicholas | Hybrid oil alert implemented; plots in artifacts/hybrid; test=tests/test_hybrid_scorer.py |
 | 4_events | done | nicholas | End-to-end anomaly trigger: schema (src/anomaly/events.py), incident manager + pipeline (src/anomaly/incidents.py, src/anomaly/pipeline.py), CLI tools/run_event_trigger.py + tools/run_incident_pipeline.py; tests=test_event_trigger.py,test_incident_manager.py,test_pipeline.py |
 | 5_tasker | done | nicholas | Sentinel-1 tasker module (src/satellite/tasker.py); catalog=configs/s1_catalog.json; CLI + tests=test_tasker.py |
-| 6_detector | pending |  | Ingest Cerulean polygons + source hints; display overlays and stats. |
+| 6_detector | done | nicholas | Cerulean client + overlay helpers, summary metrics, tests |
 | 7_linking | pending |  | Schedule next-day Cerulean re-query and persist planned actions. |
 | 8_agent | pending |  |  |
 | 9_brief | pending |  |  |

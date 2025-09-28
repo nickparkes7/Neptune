@@ -1,0 +1,64 @@
+{
+  "type": "FeatureCollection",
+  "numberMatched": 2,
+  "numberReturned": 2,
+  "features": [
+    {
+      "type": "Feature",
+      "id": "slick-001",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-74.10, 40.70],
+            [-74.10, 40.72],
+            [-74.05, 40.72],
+            [-74.05, 40.70],
+            [-74.10, 40.70]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "slick-001",
+        "slick_timestamp": "2024-06-01T12:00:00Z",
+        "area": 250000.0,
+        "machine_confidence": 0.83,
+        "max_source_collated_score": 0.76,
+        "active": true,
+        "source_type_1_ids": ["vessel-123"],
+        "source_type_2_ids": [],
+        "source_type_3_ids": ["dark-007"],
+        "s1_scene_id": "S1A_TEST_SCENE",
+        "slick_url": "https://cerulean.skytruth.org/slick/slick-001"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "slick-002",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-74.20, 40.60],
+            [-74.20, 40.61],
+            [-74.18, 40.61],
+            [-74.18, 40.60],
+            [-74.20, 40.60]
+          ]
+        ]
+      },
+      "properties": {
+        "slick_timestamp": "2024-06-01T15:30:00Z",
+        "area": 90000.0,
+        "machine_confidence": null,
+        "max_source_collated_score": null,
+        "active": false,
+        "source_type_1_ids": null,
+        "source_type_2_ids": ["platform-55"],
+        "source_type_3_ids": null,
+        "s1_scene_id": null,
+        "slick_url": "https://cerulean.skytruth.org/slick/slick-002"
+      }
+    }
+  ]
+}

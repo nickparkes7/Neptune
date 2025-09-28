@@ -49,11 +49,11 @@ steps:
   artifacts: []
 - id: 6_detector
   name: Cerulean ingestion & overlay
-  status: pending
-  owner: null
-  started: null
-  finished: null
-  notes: Ingest Cerulean polygons + source hints; display overlays and stats.
+  status: done
+  owner: nicholas
+  started: '2025-09-28T00:14:59Z'
+  finished: '2025-09-28T00:18:53Z'
+  notes: Cerulean client + overlay helpers, summary metrics, tests
   artifacts: []
 - id: 7_linking
   name: Follow-up scheduling + log
