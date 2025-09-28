@@ -51,10 +51,15 @@ def run_pipeline(
     input_path: Path,
     use_gpt: bool,
     logger: Optional[object] = None,
+    progress=None,
 ) -> tuple[pd.DataFrame, AgentRunResult, SuspectedSpillEvent]:
+    if progress:
+        progress.progress(0.05)
     _log(logger, "📥 Loading SeaOWL telemetry…")
     df = load_timeseries(input_path)
     _log(logger, f"✔️ Loaded {len(df):,} samples from {input_path.name}")
+    if progress:
+        progress.progress(0.25)
 
     _log(logger, "⚙️ Running anomaly → incident pipeline…")
     config = PipelineConfig(
@@ -64,6 +69,8 @@ def run_pipeline(
     )
     result = generate_transitions_from_ndjson(input_path, config=config)
     _log(logger, f"✔️ Pipeline produced {len(result.transitions)} transitions")
+    if progress:
+        progress.progress(0.55)
 
     if not result.agent_runs:
         raise RuntimeError("Agent did not produce output. Check pipeline configuration.")
@@ -71,6 +78,8 @@ def run_pipeline(
     synopsis = agent_run.synopsis
     scenario = synopsis.scenario.replace("_", " ")
     _log(logger, f"🧠 Agent scenario: {scenario} (confidence {synopsis.confidence:.2f})")
+    if progress:
+        progress.progress(0.75)
 
     for action in synopsis.recommended_actions[:3]:
         _log(logger, f"   ↳ {action}")
@@ -78,6 +87,8 @@ def run_pipeline(
     if synopsis.followup_scheduled:
         eta = synopsis.followup_eta.isoformat().replace("+00:00", "Z") if synopsis.followup_eta else "next Cerulean refresh"
         _log(logger, f"📅 Follow-up scheduled for {eta}")
+    if progress:
+        progress.progress(0.9)
 
     incident: Optional[SuspectedSpillEvent] = None
     for transition in result.transitions:
@@ -200,19 +211,23 @@ def main() -> None:
         st.stop()
     use_gpt = True
 
-    rerun_required = st.session_state.get("selected_file") != selected_file
-    if rerun_required:
+    previous_file = st.session_state.get("selected_file_for_run")
+    selection_changed = previous_file != selected_name
+    if selection_changed:
         st.session_state.pop("timeseries_df", None)
         st.session_state.pop("agent_run", None)
         st.session_state.pop("incident", None)
-    if st.sidebar.button("Run pipeline", type="primary") or rerun_required:
+
+    if st.sidebar.button("Run pipeline", type="primary"):
         with st.status("Running incident pipeline…", expanded=True) as status_box:
+            progress_bar = status_box.progress(0.0)
             try:
-                df, agent_run, incident = run_pipeline(selected_file, use_gpt, logger=status_box)
+                df, agent_run, incident = run_pipeline(selected_file, use_gpt, logger=status_box, progress=progress_bar)
                 st.session_state["timeseries_df"] = df
                 st.session_state["agent_run"] = agent_run
                 st.session_state["incident"] = incident
-                st.session_state["selected_file"] = selected_file
+                st.session_state["selected_file_for_run"] = selected_name
+                progress_bar.progress(1.0)
                 status_box.update(label="Pipeline complete ✅", state="complete")
             except Exception as exc:  # noqa: BLE001
                 status_box.update(label="Pipeline failed", state="error")
@@ -220,7 +235,10 @@ def main() -> None:
                 return
 
     if "agent_run" not in st.session_state:
-        st.info("Select a stream and run the pipeline to generate an incident view.")
+        message = "Select a stream and press 'Run pipeline' to generate an incident view."
+        if selection_changed:
+            message = "Selection changed. Press 'Run pipeline' to refresh the incident view."
+        st.info(message)
         return
 
     df = st.session_state["timeseries_df"]
