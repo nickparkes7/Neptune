@@ -190,7 +190,12 @@ def main() -> None:
         st.sidebar.warning("OPENAI_API_KEY missing in environment. Falling back to rule-based agent.")
         use_gpt = False
 
-    if st.sidebar.button("Run pipeline", type="primary") or st.session_state.get("selected_file") != selected_file:
+    rerun_required = st.session_state.get("selected_file") != selected_file
+    if rerun_required:
+        st.session_state.pop("timeseries_df", None)
+        st.session_state.pop("agent_run", None)
+        st.session_state.pop("incident", None)
+    if st.sidebar.button("Run pipeline", type="primary") or rerun_required:
         with st.status("Running incident pipeline…", expanded=True) as status_box:
             try:
                 df, agent_run, incident = run_pipeline(selected_file, use_gpt, logger=status_box)
