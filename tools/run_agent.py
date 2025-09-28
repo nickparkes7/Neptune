@@ -9,6 +9,7 @@ from pathlib import Path
 from anomaly.events import SuspectedSpillEvent
 
 from agent import AgentConfig, GPTAgentModel, RuleBasedAgentModel, run_agent_for_event
+from tools.load_env import load_env
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -23,6 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    load_env()
     payload = json.loads(args.event.read_text())
     event = SuspectedSpillEvent.model_validate(payload)
     config = AgentConfig(artifact_root=args.artifact_root, followup_store=args.followup_store)
