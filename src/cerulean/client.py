@@ -24,9 +24,9 @@ class CeruleanError(RuntimeError):
 class CeruleanSlick(CompatBaseModel):
     """Parsed slick detection returned by Cerulean."""
 
-    id: str = Field(..., description="Stable slick identifier")
-    slick_timestamp: datetime = Field(..., description="Timestamp of the detection (UTC)")
-    area: float = Field(..., description="Slick area in square meters")
+    id: Optional[str] = Field(None, description="Stable slick identifier")
+    slick_timestamp: Optional[datetime] = Field(None, description="Timestamp of the detection (UTC)")
+    area: Optional[float] = Field(0.0, description="Slick area in square meters")
     active: bool = Field(True, description="Whether the slick is marked active")
     machine_confidence: Optional[float] = Field(
         None, description="Model confidence score from Cerulean"
