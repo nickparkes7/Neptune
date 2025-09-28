@@ -5,6 +5,7 @@ const API_BASE = 'http://localhost:8000';
 interface Props {
   incidentId: string;
   onBack: () => void;
+  onExplain?: (incidentId: string, refresh?: boolean) => void | Promise<void>;
 }
 
 interface IncidentDetailData {
@@ -26,9 +27,18 @@ interface IncidentDetailData {
   brief_available?: boolean;
   trace_available?: boolean;
   status?: 'analyzing' | 'ready' | 'closed';
+  agent_brief_available?: boolean;
+  agent_brief?: {
+    headline?: string;
+    risk_label?: 'low' | 'medium' | 'high' | 'critical';
+    risk_score?: number;
+    generated_at?: string;
+    hero_image?: string;
+    summary?: string;
+  };
 }
 
-const IncidentDetail: React.FC<Props> = ({ incidentId, onBack }) => {
+const IncidentDetail: React.FC<Props> = ({ incidentId, onBack, onExplain }) => {
   const [incident, setIncident] = useState<IncidentDetailData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +165,42 @@ const IncidentDetail: React.FC<Props> = ({ incidentId, onBack }) => {
         </div>
       )}
 
+      {incident.agent_brief && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h4>Agent Brief Snapshot</h4>
+          <p>
+            {incident.agent_brief.summary || 'Agent brief available for this incident.'}
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '0.5rem' }}>
+            {incident.agent_brief.risk_label && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: '999px',
+                  backgroundColor: '#1e293b',
+                  border: '1px solid #475569',
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                {incident.agent_brief.risk_label}
+              </span>
+            )}
+            {typeof incident.agent_brief.risk_score === 'number' && (
+              <span>Confidence {(incident.agent_brief.risk_score * 100).toFixed(0)}%</span>
+            )}
+            {incident.agent_brief.generated_at && (
+              <span>
+                Generated {new Date(incident.agent_brief.generated_at).toLocaleString()}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {incident.followup_scheduled && (
         <div className="alert alert-info">
           Follow-up scheduled: {incident.followup_eta
@@ -177,6 +223,13 @@ const IncidentDetail: React.FC<Props> = ({ incidentId, onBack }) => {
       <div style={{ marginTop: '2rem' }}>
         <h4>Actions</h4>
         <div style={{ display: 'flex', gap: '1rem' }}>
+          <button
+            className="btn btn-primary"
+            onClick={() => onExplain && onExplain(incident.incident_id)}
+            disabled={!incident.agent_brief_available || !onExplain}
+          >
+            Explain anomaly
+          </button>
           <button
             className="btn btn-secondary"
             onClick={() => openArtifact(`${API_BASE}/incidents/${incidentId}/brief`)}

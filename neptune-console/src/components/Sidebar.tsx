@@ -10,7 +10,8 @@ interface Props {
   isStreaming?: boolean;
   apiBase: string;
   agentBrief?: AgentBrief | null;
-  onOpenAgentBrief?: () => void;
+  latestIncidentId?: string | null;
+  onOpenAgentBrief?: (incidentId: string) => void | Promise<void>;
   isBriefLoading?: boolean;
 }
 
@@ -20,6 +21,7 @@ const Sidebar: React.FC<Props> = ({
   isStreaming = false,
   apiBase,
   agentBrief = null,
+  latestIncidentId = null,
   onOpenAgentBrief,
   isBriefLoading = false,
 }) => {
@@ -74,36 +76,7 @@ const Sidebar: React.FC<Props> = ({
         style={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
       >
         <Space direction="vertical" style={{ width: '100%' }} size="large">
-          <button
-            className="btn btn-primary"
-            style={{ width: '100%', justifyContent: 'center' }}
-            onClick={onOpenAgentBrief}
-            disabled={!onOpenAgentBrief || isBriefLoading}
-          >
-            {isBriefLoading ? 'Generating brief…' : 'Explain anomaly'}
-          </button>
-
-          {heroUrl && (
-            <div className="agent-brief-preview">
-              <img
-                src={heroUrl}
-                alt="Agent brief preview"
-                onError={(event) => {
-                  (event.target as HTMLImageElement).style.visibility = 'hidden';
-                }}
-              />
-              <div>
-                <Text style={{ color: '#e2e8f0', fontSize: '0.85rem', fontWeight: 600 }}>
-                  {agentBrief.headline}
-                </Text>
-                <Text style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
-                  {(agentBrief.generated_at && new Date(agentBrief.generated_at).toLocaleString()) || ''}
-                </Text>
-              </div>
-            </div>
-          )}
-
-          {sensors.map((sensor, idx) => {
+          {sensors.map((sensor) => {
             const indicatorColor = sensor.streaming ? '#22c55e' : '#ef4444';
             return (
               <React.Fragment key={sensor.id}>
@@ -165,6 +138,49 @@ const Sidebar: React.FC<Props> = ({
               </div>
             </div>
           </div>
+        </Space>
+      </Card>
+
+      <h2 style={{ margin: '1.5rem 0 1rem', color: '#e2e8f0' }}>
+        Explain Anomaly
+      </h2>
+
+      <Card
+        className="sidebar"
+        style={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <button
+            className="btn btn-primary"
+            style={{ width: '100%', justifyContent: 'center' }}
+            onClick={() => latestIncidentId && onOpenAgentBrief && onOpenAgentBrief(latestIncidentId)}
+            disabled={!onOpenAgentBrief || !latestIncidentId || isBriefLoading}
+          >
+            {isBriefLoading ? 'Generating brief…' : 'Explain anomaly'}
+          </button>
+
+          {heroUrl && (
+            <div className="agent-brief-preview">
+              <img
+                src={heroUrl}
+                alt="Agent brief preview"
+                onError={(event) => {
+                  (event.target as HTMLImageElement).style.visibility = 'hidden';
+                }}
+              />
+              <div>
+                <Text style={{ color: '#e2e8f0', fontSize: '0.85rem', fontWeight: 600 }}>
+                  {agentBrief.headline}
+                </Text>
+                <Text style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                  {(agentBrief.generated_at && new Date(agentBrief.generated_at).toLocaleString()) || ''}
+                </Text>
+                <div style={{ color: '#60a5fa', fontSize: '0.7rem', marginTop: '0.25rem' }}>
+                  {agentBrief.risk_label ? `${agentBrief.risk_label.toUpperCase()} · ${(agentBrief.risk_score * 100).toFixed(0)}%` : ''}
+                </div>
+              </div>
+            </div>
+          )}
         </Space>
       </Card>
     </div>

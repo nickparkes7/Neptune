@@ -17,7 +17,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 from anomaly import PipelineConfig
-from anomaly.events import EventExtractorConfig
+from anomaly.events import ChannelStats, EventExtractorConfig, OilStats, SuspectedSpillEvent
+from agent.briefing import generate_agent_brief_for_event
 from agent.runner import AgentConfig, run_agent_for_event
 from agent.model import GPTAgentModel, RuleBasedAgentModel
 from cerulean.client import CeruleanClient, CeruleanQueryResult, CeruleanError
@@ -455,6 +456,7 @@ class IncidentPipelineMonitor:
                     client=client,
                     config=self.agent_config,
                     timestamp=transition.at,
+                    stream_path=self.data_path,
                 )
                 note = " (Cerulean fallback)" if label == "stub" and last_error else ""
                 print(
@@ -600,9 +602,12 @@ class IncidentPipelineMonitor:
 
 # HTTP server for REST endpoints (incidents, health, etc.)
 class HTTPHandler(BaseHTTPRequestHandler):
+    DATA_STREAM_PATH: Optional[Path] = None
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        params = parse_qs(parsed.query)
 
         if path == '/health':
             self._send_json({"status": "ok", "streaming": True})
@@ -627,6 +632,17 @@ class HTTPHandler(BaseHTTPRequestHandler):
             if len(parts) == 3 and parts[2] == 'trace':
                 self._serve_artifact(parts[1], 'agent_trace.jsonl', content_type='application/x-ndjson')
                 return
+            if len(parts) >= 3 and parts[2] == 'agent-brief':
+                if len(parts) == 3:
+                    refresh = params.get('refresh', ['0'])[0] in {'1', 'true', 'True'}
+                    self._serve_incident_agent_brief_json(parts[1], refresh=refresh)
+                    return
+                if len(parts) == 4 and parts[3] == 'markdown':
+                    self._serve_incident_agent_brief_markdown(parts[1])
+                    return
+                if len(parts) == 5 and parts[3] == 'media':
+                    self._serve_incident_agent_brief_media(parts[1], parts[4])
+                    return
 
         if path == '/agent-brief':
             self._serve_agent_brief_json()
@@ -694,6 +710,115 @@ class HTTPHandler(BaseHTTPRequestHandler):
         content_type = mimetypes.guess_type(target.name)[0] or 'application/octet-stream'
         self._send_file(target, content_type=content_type)
 
+    def _serve_incident_agent_brief_json(self, incident_id: str, *, refresh: bool = False) -> None:
+        if not self._ensure_incident_agent_brief(incident_id, refresh=refresh):
+            self._send_json({"error": "Agent brief not available"}, status=404)
+            return
+        brief_path = Path("artifacts") / incident_id / "agent_brief" / "brief.json"
+        try:
+            payload = json.loads(brief_path.read_text())
+        except Exception as exc:  # noqa: BLE001
+            self._send_json({"error": str(exc)}, status=500)
+            return
+        self._send_json(payload)
+
+    def _serve_incident_agent_brief_markdown(self, incident_id: str) -> None:
+        if not self._ensure_incident_agent_brief(incident_id, refresh=False):
+            self._send_json({"error": "Agent brief not available"}, status=404)
+            return
+        md_path = Path("artifacts") / incident_id / "agent_brief" / "brief.md"
+        if not md_path.exists():
+            self._send_json({"error": "Agent brief markdown not available"}, status=404)
+            return
+        self._send_file(md_path, content_type='text/markdown; charset=utf-8')
+
+    def _serve_incident_agent_brief_media(self, incident_id: str, slug: str) -> None:
+        if not slug:
+            self._send_json({"error": "Missing media name"}, status=400)
+            return
+        media_root = (Path("artifacts") / incident_id / "agent_brief" / "media").resolve()
+        target = (media_root / slug).resolve()
+        if not str(target).startswith(str(media_root)):
+            self._send_json({"error": "Invalid media path"}, status=400)
+            return
+        if not target.exists():
+            self._send_json({"error": "Media not found"}, status=404)
+            return
+        content_type = mimetypes.guess_type(target.name)[0] or 'application/octet-stream'
+        self._send_file(target, content_type=content_type)
+
+    def _ensure_incident_agent_brief(self, incident_id: str, *, refresh: bool) -> bool:
+        brief_json = Path("artifacts") / incident_id / "agent_brief" / "brief.json"
+        if brief_json.exists() and not refresh:
+            return True
+        return self._generate_incident_agent_brief(incident_id)
+
+    def _generate_incident_agent_brief(self, incident_id: str) -> bool:
+        incident_dir = Path("artifacts") / incident_id
+        synopsis_path = incident_dir / "incident_synopsis.json"
+        if not synopsis_path.exists():
+            return False
+        try:
+            synopsis = json.loads(synopsis_path.read_text())
+        except Exception:  # noqa: BLE001
+            return False
+
+        event_payload = synopsis.get("event")
+        if not event_payload:
+            return False
+
+        event = self._event_from_payload(event_payload)
+        if event is None:
+            return False
+
+        stream_path = self.DATA_STREAM_PATH
+        if stream_path is None or not Path(stream_path).exists():
+            return False
+
+        try:
+            generate_agent_brief_for_event(
+                event,
+                stream_path=Path(stream_path),
+                output_dir=incident_dir / "agent_brief",
+                media_url_base=f"/incidents/{incident_id}/agent-brief/media",
+            )
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+
+    @staticmethod
+    def _event_from_payload(payload: Dict[str, Any]) -> Optional[SuspectedSpillEvent]:
+        try:
+            oil_stats_payload = payload.get("oil_stats") or {}
+            oil_stats = OilStats(**oil_stats_payload)
+            context_channels_payload = payload.get("context_channels", {})
+            context = {
+                key: ChannelStats(**value)
+                for key, value in context_channels_payload.items()
+                if isinstance(value, dict)
+            }
+            aoi_bbox = payload.get("aoi_bbox")
+            if not aoi_bbox or len(aoi_bbox) != 4:
+                aoi_bbox = (payload.get("lon", 0.0), payload.get("lat", 0.0), payload.get("lon", 0.0), payload.get("lat", 0.0))
+
+            return SuspectedSpillEvent(
+                event_id=payload.get("event_id", ""),
+                ts_start=_parse_iso_ts(payload.get("ts_start")),
+                ts_end=_parse_iso_ts(payload.get("ts_end")),
+                ts_peak=_parse_iso_ts(payload.get("ts_peak")),
+                lat=float(payload.get("lat", 0.0)),
+                lon=float(payload.get("lon", 0.0)),
+                duration_s=float(payload.get("duration_s", 0.0)),
+                sample_count=int(payload.get("sample_count", 1)),
+                platform_id=payload.get("platform_id"),
+                sensor_id=payload.get("sensor_id"),
+                oil_stats=oil_stats,
+                context_channels=context,
+                aoi_bbox=tuple(aoi_bbox),
+            )
+        except Exception:  # noqa: BLE001
+            return None
+
     def _send_file(
         self,
         path: Path,
@@ -752,7 +877,23 @@ class HTTPHandler(BaseHTTPRequestHandler):
                     "ts_peak": ts_peak,
                     "path": str(incident_dir),
                     "status": synopsis.get("status", "ready"),
+                    "agent_brief_available": False,
                 }
+
+                brief_json = incident_dir / "agent_brief" / "brief.json"
+                if brief_json.exists():
+                    try:
+                        brief_payload = json.loads(brief_json.read_text())
+                        incidents_by_id[incident_dir.name]["agent_brief_available"] = True
+                        incidents_by_id[incident_dir.name]["agent_brief"] = {
+                            "headline": brief_payload.get("headline"),
+                            "risk_label": brief_payload.get("risk_label"),
+                            "risk_score": brief_payload.get("risk_score"),
+                            "generated_at": brief_payload.get("generated_at"),
+                            "hero_image": brief_payload.get("hero_image"),
+                        }
+                    except Exception:
+                        incidents_by_id[incident_dir.name]["agent_brief_available"] = False
 
         with INCIDENT_CACHE_LOCK:
             for incident_id, cached in INCIDENT_CACHE.items():
@@ -766,6 +907,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
                         "ts_peak": cached.get("ts_peak"),
                         "path": str(artifacts_root / incident_id) if (artifacts_root / incident_id).exists() else "",
                         "status": cached.get("status", "analyzing"),
+                        "agent_brief_available": False,
                     }
                 else:
                     if cached.get("status"):
@@ -837,6 +979,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
             "status": synopsis.get("status", "ready"),
             "brief_available": brief_path.exists(),
             "trace_available": trace_path.exists(),
+            "agent_brief_available": False,
         }
 
         if cached_record:
@@ -844,6 +987,22 @@ class HTTPHandler(BaseHTTPRequestHandler):
                 detail["status"] = cached_record["status"]
             if not detail.get("event") and cached_record.get("event"):
                 detail["event"] = cached_record.get("event")
+
+        agent_brief_json = incident_dir / "agent_brief" / "brief.json"
+        if agent_brief_json.exists():
+            detail["agent_brief_available"] = True
+            try:
+                payload = json.loads(agent_brief_json.read_text())
+                detail["agent_brief"] = {
+                    "headline": payload.get("headline"),
+                    "risk_label": payload.get("risk_label"),
+                    "risk_score": payload.get("risk_score"),
+                    "generated_at": payload.get("generated_at"),
+                    "hero_image": payload.get("hero_image"),
+                    "summary": payload.get("summary"),
+                }
+            except Exception:
+                detail["agent_brief_available"] = False
 
         return detail
 
@@ -877,6 +1036,19 @@ class HTTPHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+
+def _parse_iso_ts(value: Optional[str]) -> datetime:
+    if not value:
+        return datetime.now(timezone.utc)
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        parsed = datetime.now(timezone.utc)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Neptune streaming data server")
     pattern_group = parser.add_mutually_exclusive_group()
@@ -908,6 +1080,7 @@ async def main():
         incident_queue=streamer.incident_queue,
         agent_enabled=not args.no_agent,
     )
+    HTTPHandler.DATA_STREAM_PATH = streamer.data_path
 
     # Start file watcher in background thread
     file_watcher_thread = threading.Thread(target=streamer.watch_file_changes, daemon=True)

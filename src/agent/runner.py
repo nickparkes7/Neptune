@@ -17,6 +17,7 @@ from cerulean import (
     summarize_slicks,
 )
 
+from .briefing import generate_agent_brief_for_event
 from .model import AgentModel, GPTAgentModel, RuleBasedAgentModel
 from .schemas import ActionRecord, AgentPlan, IncidentSynopsis, QueryBounds
 from report import write_incident_brief
@@ -50,6 +51,7 @@ def run_agent_for_event(
     client: Optional[CeruleanClient] = None,
     config: Optional[AgentConfig] = None,
     timestamp: Optional[datetime] = None,
+    stream_path: Optional[Path] = None,
 ) -> AgentRunResult:
     """Execute the agent for a single spill event."""
 
@@ -115,7 +117,8 @@ def run_agent_for_event(
         )
     )
 
-    artifact_dir = cfg.artifact_root / (event.event_id or _slugify(event.ts_peak.isoformat()))
+    incident_slug = event.event_id or _slugify(event.ts_peak.isoformat())
+    artifact_dir = cfg.artifact_root / incident_slug
     artifact_dir.mkdir(parents=True, exist_ok=True)
     artifacts: List[Path] = []
 
@@ -169,6 +172,35 @@ def run_agent_for_event(
         followup_eta,
     )
 
+    agent_brief_paths: List[Path] = []
+    if stream_path is not None and Path(stream_path).exists():
+        try:
+            brief_dir = artifact_dir / "agent_brief"
+            media_url_base = f"/incidents/{incident_slug}/agent-brief/media"
+            brief, paths = generate_agent_brief_for_event(
+                event,
+                stream_path=Path(stream_path),
+                output_dir=brief_dir,
+                media_url_base=media_url_base,
+            )
+            json_path, md_path = paths
+            agent_brief_paths.extend(paths)
+            synopsis.artifacts.setdefault("agent_brief", str(json_path))
+            synopsis.artifacts.setdefault("agent_brief_markdown", str(md_path))
+            if brief.hero_image:
+                synopsis.artifacts.setdefault("agent_brief_hero", brief.hero_image)
+            synopsis.artifacts.setdefault("agent_brief_headline", brief.headline)
+            synopsis.artifacts.setdefault("agent_brief_risk", brief.risk_label)
+            synopsis.artifacts.setdefault("agent_brief_risk_score", brief.risk_score)
+        except Exception as exc:  # noqa: BLE001
+            trace.append(
+                ActionRecord(
+                    timestamp=_ensure_utc(datetime.now(timezone.utc)),
+                    action="agent_brief_error",
+                    payload={"error": str(exc)},
+                )
+            )
+
     # update artifact references
     artifact_map = {}
     for path in artifacts:
@@ -202,11 +234,21 @@ def run_agent_for_event(
         "ts_peak": _ensure_utc(event.ts_peak).isoformat().replace("+00:00", "Z"),
         "lat": event.lat,
         "lon": event.lon,
+        "duration_s": event.duration_s,
+        "sample_count": event.sample_count,
+        "platform_id": event.platform_id,
+        "sensor_id": event.sensor_id,
+        "aoi_bbox": event.aoi_bbox,
+        "oil_stats": event.oil_stats.model_dump(mode="json"),
+        "context_channels": {k: v.model_dump(mode="json") for k, v in event.context_channels.items()},
     }
 
     synopsis_path = artifact_dir / "incident_synopsis.json"
     synopsis_path.write_text(_json_dumps(synopsis_payload))
     artifacts.append(synopsis_path)
+
+    if agent_brief_paths:
+        artifacts.extend(agent_brief_paths)
 
     return AgentRunResult(
         plan=plan,

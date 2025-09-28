@@ -14,6 +14,7 @@ interface Props {
   error?: string | null;
   onClose: () => void;
   onRetry?: () => void;
+  incidentId?: string | null;
 }
 
 const riskColors: Record<AgentBrief['risk_label'], string> = {
@@ -31,6 +32,7 @@ const AgentBriefDrawer: React.FC<Props> = ({
   error = null,
   onClose,
   onRetry,
+  incidentId = null,
 }) => {
   if (!isOpen && !isLoading) {
     return null;
@@ -95,6 +97,9 @@ const AgentBriefDrawer: React.FC<Props> = ({
               {brief ? `${brief.risk_label.toUpperCase()} • ${(brief.risk_score * 100).toFixed(0)}%` : 'AGENT BRIEF'}
             </span>
             <h2>{brief?.headline || 'Agent Brief'}</h2>
+            {incidentId && (
+              <p className="agent-brief-incident">Incident {incidentId}</p>
+            )}
             <p className="agent-brief-subhead">
               {brief?.summary || 'Visual summary generated from cached SeaOWL evidence.'}
             </p>

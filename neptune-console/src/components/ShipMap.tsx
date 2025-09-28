@@ -13,10 +13,9 @@ L.Icon.Default.mergeOptions({
 
 interface Props {
   data: TelemetryData[];
-  onExplain?: () => void;
 }
 
-const ShipMap: React.FC<Props> = ({ data, onExplain }) => {
+const ShipMap: React.FC<Props> = ({ data }) => {
   const mapRef = useRef<any>(null);
 
   // Filter data with valid coordinates
@@ -59,14 +58,7 @@ const ShipMap: React.FC<Props> = ({ data, onExplain }) => {
 
   return (
     <div className="map-container">
-      <div className="map-header">
-        <h3>Ship Track</h3>
-        {onExplain && (
-          <button className="btn btn-secondary" onClick={() => onExplain()}>
-            Explain anomaly
-          </button>
-        )}
-      </div>
+      <h3>Ship Track</h3>
       <div style={{ height: '300px', width: '100%' }}>
         <MapContainer
           ref={mapRef}

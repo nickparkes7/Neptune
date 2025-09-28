@@ -18,6 +18,7 @@ function App() {
   const [isBriefOpen, setIsBriefOpen] = useState(false);
   const [briefLoading, setBriefLoading] = useState(false);
   const [briefError, setBriefError] = useState<string | null>(null);
+  const [agentBriefIncidentId, setAgentBriefIncidentId] = useState<string | null>(null);
   const dismissedAlertsRef = useRef<Set<string>>(new Set());
   const [, forceAlertState] = useState(0);
   const seenIncidentIdsRef = useRef<Set<string>>(new Set());
@@ -177,25 +178,32 @@ function App() {
     setSelectedIncidentId(null);
   };
 
-  const loadAgentBrief = useCallback(async () => {
-    setBriefLoading(true);
-    setBriefError(null);
-    try {
-      const response = await fetch(`${API_BASE}/agent-brief`);
-      if (!response.ok) {
-        throw new Error(`Agent brief request failed with status ${response.status}`);
+  const loadAgentBrief = useCallback(
+    async (incidentId: string, options?: { refresh?: boolean }) => {
+      setBriefLoading(true);
+      setBriefError(null);
+      try {
+        const refreshSuffix = options?.refresh ? '?refresh=1' : '';
+        const response = await fetch(`${API_BASE}/incidents/${incidentId}/agent-brief${refreshSuffix}`);
+        if (!response.ok) {
+          throw new Error(`Agent brief request failed with status ${response.status}`);
+        }
+        const data: AgentBrief = await response.json();
+        setAgentBriefIncidentId(incidentId);
+        setAgentBrief(data);
+        setIsBriefOpen(true);
+      } catch (err) {
+        console.error('Failed to load agent brief:', err);
+        setAgentBriefIncidentId(incidentId);
+        setAgentBrief(null);
+        setBriefError('Unable to load agent brief. Try regenerating.');
+        setIsBriefOpen(true);
+      } finally {
+        setBriefLoading(false);
       }
-      const data: AgentBrief = await response.json();
-      setAgentBrief(data);
-      setIsBriefOpen(true);
-    } catch (err) {
-      console.error('Failed to load agent brief:', err);
-      setBriefError('Unable to load agent brief. Ensure generator has been run.');
-      setIsBriefOpen(true);
-    } finally {
-      setBriefLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   // Periodically poll for new incidents
   useEffect(() => {
@@ -237,6 +245,7 @@ function App() {
             connectionStatus={connectionStatus}
             isStreaming={isConnected}
             agentBrief={agentBrief}
+            latestIncidentId={incidentFeed[0]?.incident_id || null}
             onOpenAgentBrief={loadAgentBrief}
             isBriefLoading={briefLoading}
           />
@@ -247,6 +256,7 @@ function App() {
             <IncidentDetail
               incidentId={selectedIncidentId}
               onBack={handleBackToTelemetry}
+              onExplain={loadAgentBrief}
             />
           ) : (
             <>
@@ -313,7 +323,6 @@ function App() {
                   <div className="map-section">
                     <ShipMap
                       data={telemetryData}
-                      onExplain={loadAgentBrief}
                     />
                   </div>
                 </>
@@ -326,6 +335,7 @@ function App() {
           <IncidentList
             incidents={incidentFeed}
             onIncidentSelect={handleIncidentSelect}
+            onExplain={loadAgentBrief}
           />
         </div>
       </div>
@@ -337,7 +347,8 @@ function App() {
         isLoading={briefLoading}
         error={briefError}
         onClose={() => setIsBriefOpen(false)}
-        onRetry={loadAgentBrief}
+        onRetry={agentBriefIncidentId ? () => loadAgentBrief(agentBriefIncidentId, { refresh: true }) : undefined}
+        incidentId={agentBriefIncidentId}
       />
     </div>
   );

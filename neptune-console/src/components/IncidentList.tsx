@@ -8,9 +8,10 @@ const { Text } = Typography;
 interface Props {
   incidents: Incident[];
   onIncidentSelect: (incidentId: string) => void;
+  onExplain: (incidentId: string) => void | Promise<void>;
 }
 
-const IncidentList: React.FC<Props> = ({ incidents, onIncidentSelect }) => {
+const IncidentList: React.FC<Props> = ({ incidents, onIncidentSelect, onExplain }) => {
   const getSeverity = (incident: Incident) => {
     const confidence = typeof incident.confidence === 'number' ? incident.confidence : 0;
     if (confidence >= 0.8) return 'critical';
@@ -109,6 +110,23 @@ const IncidentList: React.FC<Props> = ({ incidents, onIncidentSelect }) => {
                     <span className="incident-card-confidence">
                       Confidence: {formatConfidence(incident.confidence)}
                     </span>
+                    {incident.agent_brief?.risk_label && (
+                      <span className="incident-card-brief">
+                        Risk: {incident.agent_brief.risk_label.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="incident-card-actions">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onExplain(incident.incident_id);
+                      }}
+                      disabled={!incident.agent_brief_available}
+                    >
+                      Explain anomaly
+                    </button>
                   </div>
                 </div>
               );

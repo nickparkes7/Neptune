@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Optional
+from typing import Dict, Iterable, List, Mapping, Optional, Tuple
 
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 from anomaly.hybrid import HybridOilAlertScorer
+from anomaly.events import SuspectedSpillEvent
 
 from .schemas import (
     AgentBrief,
@@ -61,6 +67,122 @@ def score_stream(stream_path: Path) -> pd.DataFrame:
         }
     )
     return frame
+
+
+def render_brief_media(
+    frame: pd.DataFrame,
+    media_dir: Path,
+    *,
+    media_url_base: str,
+) -> Dict[str, ArtifactRef]:
+    """Render the core visual assets for the agent brief."""
+
+    media_dir.mkdir(parents=True, exist_ok=True)
+
+    timeseries_path = media_dir / "seaowl_timeseries.png"
+    track_path = media_dir / "seaowl_track.png"
+    hybrid_values_path = media_dir / "hybrid_values.png"
+    hybrid_scores_path = media_dir / "hybrid_scores.png"
+
+    _render_timeseries_plot(frame, timeseries_path)
+    _render_track_plot(frame, track_path)
+    _render_hybrid_values_plot(frame, hybrid_values_path)
+    _render_hybrid_scores_plot(frame, hybrid_scores_path, frame.attrs.get("z_warn"), frame.attrs.get("z_alarm"))
+
+    def _url(name: str) -> str:
+        return f"{media_url_base.rstrip('/')}/{name}"
+
+    return {
+        "seaowl_timeseries": ArtifactRef(
+            label="SeaOWL time-series",
+            url=_url("seaowl_timeseries.png"),
+            asset_path=timeseries_path,
+            kind="plot",
+        ),
+        "seaowl_track": ArtifactRef(
+            label="Track heatmap",
+            url=_url("seaowl_track.png"),
+            asset_path=track_path,
+            kind="map",
+        ),
+        "hybrid_values": ArtifactRef(
+            label="Hybrid alert values",
+            url=_url("hybrid_values.png"),
+            asset_path=hybrid_values_path,
+            kind="plot",
+        ),
+        "hybrid_scores": ArtifactRef(
+            label="Hybrid alert z-scores",
+            url=_url("hybrid_scores.png"),
+            asset_path=hybrid_scores_path,
+            kind="plot",
+        ),
+    }
+
+
+def slice_frame_for_event(
+    frame: pd.DataFrame,
+    event: SuspectedSpillEvent,
+    *,
+    pre_seconds: int = 600,
+    post_seconds: int = 600,
+) -> pd.DataFrame:
+    """Return a window around the event to keep plots focused."""
+
+    if frame.empty:
+        return frame
+
+    work = frame.copy()
+    work.attrs = frame.attrs.copy()
+    work["ts"] = pd.to_datetime(work["ts"], utc=True, errors="coerce")
+    work = work.dropna(subset=["ts"]).reset_index(drop=True)
+
+    start = (_ensure_utc(event.ts_start) - timedelta(seconds=pre_seconds)).to_pydatetime()
+    end = (_ensure_utc(event.ts_end) + timedelta(seconds=post_seconds)).to_pydatetime()
+
+    mask = (work["ts"] >= start) & (work["ts"] <= end)
+    sliced = work.loc[mask].reset_index(drop=True)
+    sliced.attrs = frame.attrs.copy()
+    if sliced.empty:
+        return work
+    return sliced
+
+
+def generate_agent_brief_for_event(
+    event: SuspectedSpillEvent,
+    *,
+    stream_path: Path,
+    output_dir: Path,
+    media_url_base: str,
+    pre_seconds: int = 600,
+    post_seconds: int = 600,
+) -> Tuple[AgentBrief, List[Path]]:
+    """Generate and persist an agent brief for a specific incident."""
+
+    frame = score_stream(stream_path)
+    sliced = slice_frame_for_event(frame, event, pre_seconds=pre_seconds, post_seconds=post_seconds)
+    if sliced.empty:
+        sliced = frame
+
+    media_dir = output_dir / "media"
+    artifacts = render_brief_media(sliced, media_dir, media_url_base=media_url_base)
+
+    scenario_id = event.event_id or "seaowl_event"
+    brief = build_agent_brief(
+        scenario_id=scenario_id,
+        stream_path=stream_path,
+        frame=sliced,
+        artifacts=artifacts,
+        hero_artifact_key="seaowl_timeseries",
+    )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "brief.json"
+    md_path = output_dir / "brief.md"
+    json_path.write_text(json.dumps(brief.model_dump(mode="json"), indent=2))
+    md_path.write_text(brief_to_markdown(brief))
+
+    return brief, [json_path, md_path]
 
 
 def build_agent_brief(
@@ -253,6 +375,129 @@ def _safe_float(value) -> float:
         return float("nan")
 
 
+def _render_timeseries_plot(frame: pd.DataFrame, path: Path) -> None:
+    ts = pd.to_datetime(frame["ts"], utc=True, errors="coerce")
+    oil = pd.to_numeric(frame.get("oil_fluor_ppb"), errors="coerce")
+    baseline = pd.to_numeric(frame.get("oil_baseline"), errors="coerce")
+    warn = frame.get("oil_warn", pd.Series([False] * len(frame))).astype(bool)
+    alarm = frame.get("oil_alarm", pd.Series([False] * len(frame))).astype(bool)
+
+    plt.style.use("dark_background")
+    fig, ax = plt.subplots(figsize=(11, 4), facecolor="#0f172a")
+    ax.set_facecolor("#0f172a")
+    ax.plot(ts, oil, color="#38bdf8", linewidth=2.2, label="oil fluorescence")
+
+    if not baseline.isna().all():
+        ax.plot(ts, baseline, color="#f97316", linewidth=1.2, alpha=0.85, label="adaptive baseline")
+
+    if warn.any():
+        ax.scatter(ts[warn], oil[warn], color="#facc15", s=18, label="warn")
+    if alarm.any():
+        ax.scatter(ts[alarm], oil[alarm], color="#f87171", s=22, label="alarm", zorder=4)
+
+    event_mask = _event_mask(frame)
+    if event_mask.any():
+        ymin, ymax = ax.get_ylim()
+        ax.fill_between(ts, ymin, ymax, where=event_mask, color="#0ea5e9", alpha=0.12, linewidth=0)
+        ax.set_ylim(ymin, ymax)
+
+    ax.set_title("SeaOWL Oil Fluorescence")
+    ax.set_ylabel("ppb")
+    ax.grid(color="#1e293b", linestyle="--", alpha=0.6)
+    ax.legend(loc="upper left")
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=160)
+    plt.close(fig)
+
+
+def _render_track_plot(frame: pd.DataFrame, path: Path) -> None:
+    lat = pd.to_numeric(frame.get("lat"), errors="coerce")
+    lon = pd.to_numeric(frame.get("lon"), errors="coerce")
+
+    plt.style.use("dark_background")
+    fig, ax = plt.subplots(figsize=(5.5, 5.5), facecolor="#0f172a")
+    ax.set_facecolor("#0f172a")
+
+    valid = ~(lat.isna() | lon.isna())
+    lat = lat[valid]
+    lon = lon[valid]
+
+    if lat.empty:
+        ax.text(0.5, 0.5, "No track data", ha="center", va="center", color="#94a3b8")
+    else:
+        ax.plot(lon, lat, color="#38bdf8", linewidth=2.0, alpha=0.85)
+        sc = ax.scatter(lon, lat, c=np.linspace(0, 1, len(lat)), cmap="viridis", s=18)
+        fig.colorbar(sc, ax=ax, label="Track progression")
+        event_mask = _event_mask(frame.loc[valid])
+        event_lat = lat[event_mask]
+        event_lon = lon[event_mask]
+        if not event_lat.empty:
+            ax.scatter(event_lon, event_lat, color="#f87171", s=26, label="anomaly window")
+        ax.set_xlabel("Longitude")
+        ax.set_ylabel("Latitude")
+        ax.legend(loc="lower right")
+
+    ax.set_title("Track Trace (last window)")
+    ax.grid(color="#1e293b", linestyle="--", alpha=0.5)
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=160)
+    plt.close(fig)
+
+
+def _render_hybrid_values_plot(frame: pd.DataFrame, path: Path) -> None:
+    ts = pd.to_datetime(frame["ts"], utc=True, errors="coerce")
+    oil = pd.to_numeric(frame.get("oil_fluor_ppb"), errors="coerce")
+    baseline = pd.to_numeric(frame.get("oil_baseline"), errors="coerce")
+    warn = frame.get("oil_warn", pd.Series([False] * len(frame))).astype(bool)
+    alarm = frame.get("oil_alarm", pd.Series([False] * len(frame))).astype(bool)
+
+    plt.style.use("dark_background")
+    fig, ax = plt.subplots(figsize=(11, 3.8), facecolor="#0f172a")
+    ax.set_facecolor("#0f172a")
+    ax.plot(ts, oil, color="#38bdf8", linewidth=2.0, label="oil")
+    if not baseline.isna().all():
+        ax.plot(ts, baseline, color="#f97316", linewidth=1.0, alpha=0.8, label="baseline")
+    if warn.any():
+        ax.scatter(ts[warn], oil[warn], color="#facc15", s=16, label="warn")
+    if alarm.any():
+        ax.scatter(ts[alarm], oil[alarm], color="#f87171", s=20, label="alarm")
+    ax.set_title("Hybrid Alert — Oil Fluorescence vs Baseline")
+    ax.set_ylabel("ppb")
+    ax.grid(color="#1e293b", linestyle="--", alpha=0.6)
+    ax.legend(loc="upper left")
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=160)
+    plt.close(fig)
+
+
+def _render_hybrid_scores_plot(
+    frame: pd.DataFrame,
+    path: Path,
+    z_warn: Optional[float],
+    z_alarm: Optional[float],
+) -> None:
+    ts = pd.to_datetime(frame["ts"], utc=True, errors="coerce")
+    zeff = pd.to_numeric(frame.get("oil_z_eff"), errors="coerce")
+
+    plt.style.use("dark_background")
+    fig, ax = plt.subplots(figsize=(11, 3.2), facecolor="#0f172a")
+    ax.set_facecolor("#0f172a")
+    ax.plot(ts, zeff, color="#c4b5fd", linewidth=1.8, label="z_eff")
+    if z_warn is not None:
+        ax.axhline(z_warn, color="#facc15", linestyle="--", linewidth=1.2, label="warn threshold")
+    if z_alarm is not None:
+        ax.axhline(z_alarm, color="#f87171", linestyle="--", linewidth=1.2, label="alarm threshold")
+    ax.set_title("Hybrid Alert — Effective Z-Score")
+    ax.set_ylabel("z-score")
+    ax.grid(color="#1e293b", linestyle="--", alpha=0.6)
+    ax.legend(loc="upper left")
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=160)
+    plt.close(fig)
 def _event_mask(frame: pd.DataFrame) -> pd.Series:
     warn = pd.Series(frame.get("oil_warn", False)).astype(bool)
     alarm = pd.Series(frame.get("oil_alarm", False)).astype(bool)
@@ -488,3 +733,9 @@ def _metrics_dict(
     metrics["event_duration_min"] = round(event_duration_min, 2)
     metrics["drift_km"] = round(drift_m / 1000.0, 2)
     return metrics
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)

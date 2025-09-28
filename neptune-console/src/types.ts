@@ -31,6 +31,17 @@ export interface Incident {
   ts_peak: string;
   path: string;
   status?: 'analyzing' | 'ready' | 'closed';
+  agent_brief_available?: boolean;
+  agent_brief?: AgentBriefPreview;
+}
+
+export interface AgentBriefPreview {
+  headline?: string;
+  risk_label?: 'low' | 'medium' | 'high' | 'critical';
+  risk_score?: number;
+  generated_at?: string;
+  hero_image?: string;
+  summary?: string;
 }
 
 export interface AgentBriefMedia {
