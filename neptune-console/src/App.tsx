@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Incident } from './types';
+import { Incident, AgentBrief } from './types';
 import TelemetryCharts from './components/TelemetryCharts';
 import ShipMap from './components/ShipMap';
 import IncidentList from './components/IncidentList';
 import IncidentDetail from './components/IncidentDetail';
 import Sidebar from './components/Sidebar';
+import AgentBriefDrawer from './components/AgentBriefDrawer';
 import { useStreamingData } from './hooks/useStreamingData';
 
 const API_BASE = 'http://localhost:8000';
@@ -13,6 +14,10 @@ function App() {
   const [incidentFeed, setIncidentFeed] = useState<Incident[]>([]);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [activeIncidentAlert, setActiveIncidentAlert] = useState<Incident | null>(null);
+  const [agentBrief, setAgentBrief] = useState<AgentBrief | null>(null);
+  const [isBriefOpen, setIsBriefOpen] = useState(false);
+  const [briefLoading, setBriefLoading] = useState(false);
+  const [briefError, setBriefError] = useState<string | null>(null);
   const dismissedAlertsRef = useRef<Set<string>>(new Set());
   const [, forceAlertState] = useState(0);
   const seenIncidentIdsRef = useRef<Set<string>>(new Set());
@@ -154,7 +159,8 @@ function App() {
     data: telemetryData,
     isConnected,
     connectionStatus,
-    lastUpdateTime
+    lastUpdateTime,
+    sensorStatus
   } = useStreamingData({
     websocketUrl: 'ws://localhost:8001',
     maxBufferSize: 1000,
@@ -163,6 +169,14 @@ function App() {
   });
 
   const isLoading = !isConnected && telemetryData.length === 0;
+  const seaowlStreaming = sensorStatus?.seaowl?.streaming ?? (isConnected && telemetryData.length > 0);
+  const seaowlLastTimestamp = sensorStatus?.seaowl?.last_timestamp;
+  const lastUpdateDisplay = seaowlLastTimestamp
+    ? (() => {
+        const parsed = new Date(seaowlLastTimestamp);
+        return Number.isNaN(parsed.getTime()) ? seaowlLastTimestamp : parsed.toLocaleTimeString();
+      })()
+    : lastUpdateTime;
 
   const handleIncidentSelect = (incidentId: string) => {
     setSelectedIncidentId(incidentId);
@@ -171,6 +185,26 @@ function App() {
   const handleBackToTelemetry = () => {
     setSelectedIncidentId(null);
   };
+
+  const loadAgentBrief = useCallback(async () => {
+    setBriefLoading(true);
+    setBriefError(null);
+    try {
+      const response = await fetch(`${API_BASE}/agent-brief`);
+      if (!response.ok) {
+        throw new Error(`Agent brief request failed with status ${response.status}`);
+      }
+      const data: AgentBrief = await response.json();
+      setAgentBrief(data);
+      setIsBriefOpen(true);
+    } catch (err) {
+      console.error('Failed to load agent brief:', err);
+      setBriefError('Unable to load agent brief. Ensure generator has been run.');
+      setIsBriefOpen(true);
+    } finally {
+      setBriefLoading(false);
+    }
+  }, []);
 
   // Periodically poll for new incidents
   useEffect(() => {
@@ -207,9 +241,14 @@ function App() {
       <div className="app-layout">
         <div className="sidebar-left">
           <Sidebar
-            lastUpdateTime={lastUpdateTime}
+            apiBase={API_BASE}
+            lastUpdateTime={lastUpdateDisplay}
             connectionStatus={connectionStatus}
-            isStreaming={isConnected}
+            isStreaming={seaowlStreaming}
+            sensorStatus={sensorStatus}
+            agentBrief={agentBrief}
+            onOpenAgentBrief={loadAgentBrief}
+            isBriefLoading={briefLoading}
           />
         </div>
 
@@ -282,7 +321,10 @@ function App() {
                     <TelemetryCharts data={telemetryData} />
                   </div>
                   <div className="map-section">
-                    <ShipMap data={telemetryData} />
+                    <ShipMap
+                      data={telemetryData}
+                      onExplain={loadAgentBrief}
+                    />
                   </div>
                 </>
               )}
@@ -297,6 +339,16 @@ function App() {
           />
         </div>
       </div>
+
+      <AgentBriefDrawer
+        brief={agentBrief}
+        apiBase={API_BASE}
+        isOpen={isBriefOpen}
+        isLoading={briefLoading}
+        error={briefError}
+        onClose={() => setIsBriefOpen(false)}
+        onRetry={loadAgentBrief}
+      />
     </div>
   );
 }

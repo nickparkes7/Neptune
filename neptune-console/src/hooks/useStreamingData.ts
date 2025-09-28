@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { TelemetryData } from '../types';
+import { TelemetryData, SensorStatusMap } from '../types';
 
 interface StreamingMessage {
-  type: 'initial' | 'update' | 'pong' | 'incident_transition';
+  type: 'initial' | 'update' | 'pong' | 'incident_transition' | 'status';
   data?: TelemetryData[];
   transitions?: any;
+  sensors?: SensorStatusMap;
 }
 
 interface StreamingOptions {
@@ -28,6 +29,7 @@ export const useStreamingData = (options: StreamingOptions) => {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected');
   const [lastUpdateTime, setLastUpdateTime] = useState<string>('');
+  const [sensorStatus, setSensorStatus] = useState<SensorStatusMap>({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -67,6 +69,10 @@ export const useStreamingData = (options: StreamingOptions) => {
       ws.onmessage = (event) => {
         try {
           const message: StreamingMessage = JSON.parse(event.data);
+
+          if (message.sensors) {
+            setSensorStatus(message.sensors);
+          }
 
           if (message.type === 'initial' && message.data) {
             console.log('📊 Received initial data:', message.data.length, 'points');
@@ -186,6 +192,7 @@ export const useStreamingData = (options: StreamingOptions) => {
     isConnected,
     connectionStatus,
     lastUpdateTime,
+    sensorStatus,
     connect,
     disconnect,
     reconnect,

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Union
 
 from pydantic import Field, validator
 
 from common.pydantic_compat import CompatBaseModel
 
-ScenarioLabel = Literal["validation_context", "first_discovery"]
+ScenarioLabel = Literal["validation_context", "first_discovery", "suspected_algal_bloom"]
 
 
 class QueryBounds(CompatBaseModel):
@@ -85,3 +85,78 @@ class ActionRecord(CompatBaseModel):
     timestamp: datetime
     action: str
     payload: Dict[str, object]
+
+
+class BriefMedia(CompatBaseModel):
+    """Visual artifact linked to an observation in the agent brief."""
+
+    label: str
+    path: str
+    asset_path: Optional[str] = None
+    thumbnail: Optional[str] = None
+    kind: Literal["image", "plot", "map", "document"] = "image"
+
+
+class BriefObservation(CompatBaseModel):
+    """Key evidence-backed finding in the agent brief."""
+
+    id: str
+    title: str
+    summary: str
+    impact: Optional[str] = None
+    evidence: List[BriefMedia] = Field(default_factory=list)
+
+
+class BriefAction(CompatBaseModel):
+    """Recommended action for operators reviewing the brief."""
+
+    id: str
+    title: str
+    summary: str
+    urgency: Literal["low", "medium", "high", "critical"] = "high"
+
+
+class BriefCitation(CompatBaseModel):
+    """Mapping between claims and their supporting artifacts."""
+
+    claim_id: str
+    label: str
+    path: str
+
+
+class AgentBrief(CompatBaseModel):
+    """Structured agent brief for rapid anomaly handoff."""
+
+    scenario_id: str
+    generated_at: datetime
+    risk_score: float = Field(..., ge=0.0, le=1.0)
+    risk_label: Literal["low", "medium", "high", "critical"]
+    headline: str
+    summary: str
+    hero_image: Optional[str] = None
+    hero_caption: Optional[str] = None
+    observations: List[BriefObservation] = Field(default_factory=list)
+    recommended_actions: List[BriefAction] = Field(default_factory=list)
+    citations: List[BriefCitation] = Field(default_factory=list)
+    metrics: Dict[str, Union[float, int, str]] = Field(default_factory=dict)
+    data_sources: Dict[str, Union[str, List[str]]] = Field(default_factory=dict)
+
+    @validator("risk_label")
+    def _ensure_label_matches_score(cls, value, values):  # noqa: D417
+        score = values.get("risk_score")
+        if score is None:
+            return value
+        tiers = {
+            "low": (0.0, 0.34),
+            "medium": (0.34, 0.67),
+            "high": (0.67, 0.85),
+            "critical": (0.85, 1.01),
+        }
+        for label, (lower, upper) in tiers.items():
+            if lower <= score < upper:
+                if value != label:
+                    raise ValueError(
+                        f"risk_label '{value}' inconsistent with score {score:.2f}; expected '{label}'"
+                    )
+                break
+        return value
