@@ -19,5 +19,11 @@ dependencies = [
   "pydeck>=0.8.0"
 ]
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.uv]
 dev-dependencies = []

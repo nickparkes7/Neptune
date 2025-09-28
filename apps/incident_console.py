@@ -15,6 +15,9 @@ import streamlit as st
 from anomaly import PipelineConfig, generate_transitions_from_ndjson
 from anomaly.events import SuspectedSpillEvent
 from agent import AgentRunResult, GPTAgentModel, RuleBasedAgentModel
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
 from tools.load_env import load_env
 
 load_env()
@@ -39,17 +42,33 @@ def load_geojson(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
-def run_pipeline(input_path: Path, use_gpt: bool) -> tuple[pd.DataFrame, AgentRunResult, SuspectedSpillEvent]:
+def run_pipeline(
+    input_path: Path,
+    use_gpt: bool,
+    logger: Optional[object] = None,
+) -> tuple[pd.DataFrame, AgentRunResult, SuspectedSpillEvent]:
+    if logger:
+        logger.write("Loading SeaOWL telemetry…")
     df = load_timeseries(input_path)
+    if logger:
+        logger.write(f"Loaded {len(df):,} samples from {input_path.name}")
+
+    if logger:
+        logger.write("Executing incident pipeline…")
     config = PipelineConfig(
         flush_after_s=1800,
         agent_enabled=True,
         agent_model=GPTAgentModel() if use_gpt else RuleBasedAgentModel(),
     )
     result = generate_transitions_from_ndjson(input_path, config=config)
+    if logger:
+        logger.write(f"Generated {len(result.transitions)} transitions")
     if not result.agent_runs:
         raise RuntimeError("Agent did not produce output. Check pipeline configuration.")
     agent_run = result.agent_runs[-1]
+    if logger:
+        scenario = agent_run.synopsis.scenario.replace("_", " ")
+        logger.write(f"Agent scenario: {scenario} (confidence {agent_run.synopsis.confidence:.2f})")
 
     incident: Optional[SuspectedSpillEvent] = None
     for transition in result.transitions:
@@ -172,15 +191,17 @@ def main() -> None:
         use_gpt = False
 
     if st.sidebar.button("Run pipeline", type="primary") or st.session_state.get("selected_file") != selected_file:
-        with st.spinner("Running incident pipeline..."):
+        with st.status("Running incident pipeline…", expanded=True) as status_box:
             try:
-                df, agent_run, incident = run_pipeline(selected_file, use_gpt)
+                df, agent_run, incident = run_pipeline(selected_file, use_gpt, logger=status_box)
                 st.session_state["timeseries_df"] = df
                 st.session_state["agent_run"] = agent_run
                 st.session_state["incident"] = incident
                 st.session_state["selected_file"] = selected_file
+                status_box.update(label="Pipeline complete ✅", state="complete")
             except Exception as exc:  # noqa: BLE001
-                st.error(f"Pipeline failed: {exc}")
+                status_box.update(label="Pipeline failed", state="error")
+                status_box.write(str(exc))
                 return
 
     if "agent_run" not in st.session_state:
