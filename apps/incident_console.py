@@ -184,11 +184,12 @@ def main() -> None:
     selected_name = st.sidebar.selectbox("SeaOWL stream", [f.name for f in files])
     selected_file = DATA_DIR / selected_name
 
-    use_gpt_default = bool(os.getenv("OPENAI_API_KEY"))
-    use_gpt = st.sidebar.checkbox("Use GPT-5 agent", value=use_gpt_default)
-    if use_gpt and not use_gpt_default:
-        st.sidebar.warning("OPENAI_API_KEY missing in environment. Falling back to rule-based agent.")
-        use_gpt = False
+    if not os.getenv("OPENAI_API_KEY"):
+        st.sidebar.error(
+            "OPENAI_API_KEY not found. The GPT-5 agent is required for this demo."
+        )
+        st.stop()
+    use_gpt = True
 
     rerun_required = st.session_state.get("selected_file") != selected_file
     if rerun_required:
