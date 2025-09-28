@@ -4,6 +4,7 @@
 import argparse
 import asyncio
 import json
+import mimetypes
 import os
 import time
 import websockets
@@ -23,6 +24,7 @@ from cerulean.client import CeruleanClient, CeruleanQueryResult, CeruleanError
 
 INCIDENT_CACHE: Dict[str, Dict[str, Any]] = {}
 INCIDENT_CACHE_LOCK = threading.Lock()
+AGENT_BRIEF_ROOT = Path("artifacts/briefs")
 
 
 def _slugify(text: str) -> str:
@@ -626,6 +628,19 @@ class HTTPHandler(BaseHTTPRequestHandler):
                 self._serve_artifact(parts[1], 'agent_trace.jsonl', content_type='application/x-ndjson')
                 return
 
+        if path == '/agent-brief':
+            self._serve_agent_brief_json()
+            return
+
+        if path == '/agent-brief/markdown':
+            self._serve_agent_brief_markdown()
+            return
+
+        if path.startswith('/agent-brief/media/'):
+            slug = path[len('/agent-brief/media/'):]
+            self._serve_agent_brief_media(slug)
+            return
+
         self._send_json({"error": "Use WebSocket for telemetry data"}, status=404)
 
     def do_OPTIONS(self):
@@ -647,6 +662,60 @@ class HTTPHandler(BaseHTTPRequestHandler):
         self.send_header('Content-type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps(payload).encode())
+
+    def _serve_agent_brief_json(self) -> None:
+        json_path = AGENT_BRIEF_ROOT / "latest.json"
+        if not json_path.exists():
+            self._send_json({"error": "Agent brief not available"}, status=404)
+            return
+        try:
+            payload = json.loads(json_path.read_text())
+        except Exception as exc:  # noqa: BLE001
+            self._send_json({"error": str(exc)}, status=500)
+            return
+        self._send_json(payload)
+
+    def _serve_agent_brief_markdown(self) -> None:
+        md_path = AGENT_BRIEF_ROOT / "latest.md"
+        if not md_path.exists():
+            self._send_json({"error": "Agent brief markdown not available"}, status=404)
+            return
+        self._send_file(md_path, content_type='text/markdown; charset=utf-8')
+
+    def _serve_agent_brief_media(self, slug: str) -> None:
+        media_root = (AGENT_BRIEF_ROOT / "media").resolve()
+        target = (media_root / slug).resolve()
+        if not str(target).startswith(str(media_root)):
+            self._send_json({"error": "Invalid media path"}, status=400)
+            return
+        if not target.exists():
+            self._send_json({"error": "Media not found"}, status=404)
+            return
+        content_type = mimetypes.guess_type(target.name)[0] or 'application/octet-stream'
+        self._send_file(target, content_type=content_type)
+
+    def _send_file(
+        self,
+        path: Path,
+        *,
+        content_type: str,
+        download_name: Optional[str] = None,
+    ) -> None:
+        try:
+            payload = path.read_bytes()
+        except Exception as exc:  # noqa: BLE001
+            self._send_json({"error": str(exc)}, status=500)
+            return
+
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Content-type', content_type)
+        if download_name:
+            self.send_header('Content-Disposition', f'attachment; filename="{download_name}"')
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _collect_incidents(self) -> list:
         artifacts_root = Path("artifacts")

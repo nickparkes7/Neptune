@@ -1,5 +1,6 @@
 import React from 'react';
-import { Card, Typography, Space, Divider } from 'antd';
+import { Card, Typography, Space } from 'antd';
+import { AgentBrief } from '../types';
 
 const { Text } = Typography;
 
@@ -7,12 +8,20 @@ interface Props {
   lastUpdateTime: string;
   connectionStatus?: 'connecting' | 'connected' | 'disconnected' | 'error';
   isStreaming?: boolean;
+  apiBase: string;
+  agentBrief?: AgentBrief | null;
+  onOpenAgentBrief?: () => void;
+  isBriefLoading?: boolean;
 }
 
 const Sidebar: React.FC<Props> = ({
   lastUpdateTime,
   connectionStatus = 'disconnected',
   isStreaming = false,
+  apiBase,
+  agentBrief = null,
+  onOpenAgentBrief,
+  isBriefLoading = false,
 }) => {
   const sensors = [
     {
@@ -41,6 +50,19 @@ const Sidebar: React.FC<Props> = ({
     },
   ];
 
+  const buildUrl = (path?: string) => {
+    if (!path) {
+      return undefined;
+    }
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+    const trimmed = path.startsWith('/') ? path : `/${path}`;
+    return `${apiBase}${trimmed}`;
+  };
+
+  const heroUrl = buildUrl(agentBrief?.hero_image);
+
   return (
     <div>
       <h2 style={{ marginBottom: '1rem', color: '#e2e8f0' }}>
@@ -52,6 +74,35 @@ const Sidebar: React.FC<Props> = ({
         style={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
       >
         <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <button
+            className="btn btn-primary"
+            style={{ width: '100%', justifyContent: 'center' }}
+            onClick={onOpenAgentBrief}
+            disabled={!onOpenAgentBrief || isBriefLoading}
+          >
+            {isBriefLoading ? 'Generating brief…' : 'Explain anomaly'}
+          </button>
+
+          {heroUrl && (
+            <div className="agent-brief-preview">
+              <img
+                src={heroUrl}
+                alt="Agent brief preview"
+                onError={(event) => {
+                  (event.target as HTMLImageElement).style.visibility = 'hidden';
+                }}
+              />
+              <div>
+                <Text style={{ color: '#e2e8f0', fontSize: '0.85rem', fontWeight: 600 }}>
+                  {agentBrief.headline}
+                </Text>
+                <Text style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                  {(agentBrief.generated_at && new Date(agentBrief.generated_at).toLocaleString()) || ''}
+                </Text>
+              </div>
+            </div>
+          )}
+
           {sensors.map((sensor, idx) => {
             const indicatorColor = sensor.streaming ? '#22c55e' : '#ef4444';
             return (
