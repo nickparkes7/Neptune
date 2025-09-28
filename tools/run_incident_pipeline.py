@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import sys
 
@@ -16,6 +16,10 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from anomaly import PipelineConfig, generate_transitions_from_ndjson
+from agent import AgentConfig as GPTAgentConfig, GPTAgentModel, RuleBasedAgentModel
+from agent.runner import AgentRunResult
+from cerulean import CeruleanClient
+from tools.load_env import load_env
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,6 +32,29 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help="Seconds after the final event to flush/close incidents (defaults to incident_ttl_s + 1)",
+    )
+    parser.add_argument(
+        "--run-agent",
+        action="store_true",
+        help="Invoke the GPT-5 agent on taskable transitions and emit agent artifacts",
+    )
+    parser.add_argument(
+        "--agent-mode",
+        choices=["gpt", "rule"],
+        default="gpt",
+        help="Use GPT-5 (default) or the deterministic fallback agent",
+    )
+    parser.add_argument(
+        "--agent-artifacts",
+        type=Path,
+        default=GPTAgentConfig().artifact_root,
+        help="Directory root where agent artifacts should be written",
+    )
+    parser.add_argument(
+        "--agent-followups",
+        type=Path,
+        default=GPTAgentConfig().followup_store,
+        help="Path to the follow-up log (JSONL)",
     )
     return parser
 
@@ -47,13 +74,38 @@ def serialize_transition(transition) -> Dict[str, Any]:
     }
 
 
+def serialize_agent_run(run: AgentRunResult) -> Dict[str, Any]:
+    return {
+        "plan": run.plan.model_dump(mode="json"),
+        "synopsis": run.synopsis.model_dump(mode="json"),
+        "artifacts": [str(path) for path in run.artifacts],
+        "trace": str(run.trace_path),
+    }
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    config = PipelineConfig(flush_after_s=args.flush_after)
-    result = generate_transitions_from_ndjson(args.input, config=config)
-    payload = [serialize_transition(t) for t in result.transitions]
+    load_env()
+
+    pipeline_config = PipelineConfig(flush_after_s=args.flush_after)
+    if args.run_agent:
+        model = GPTAgentModel() if args.agent_mode == "gpt" else RuleBasedAgentModel()
+        agent_config = GPTAgentConfig(
+            artifact_root=args.agent_artifacts,
+            followup_store=args.agent_followups,
+        )
+        pipeline_config.agent_enabled = True
+        pipeline_config.agent_model = model
+        pipeline_config.agent_config = agent_config
+        pipeline_config.agent_client = CeruleanClient()
+
+    result = generate_transitions_from_ndjson(args.input, config=pipeline_config)
+    payload = {
+        "transitions": [serialize_transition(t) for t in result.transitions],
+        "agent_runs": [serialize_agent_run(r) for r in result.agent_runs],
+    }
     text = json.dumps(payload, indent=2 if args.pretty else None)
 
     if args.output:

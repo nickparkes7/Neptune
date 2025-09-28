@@ -17,6 +17,7 @@ class PipelineIntegrationTest(unittest.TestCase):
         self.assertIn("opened", kinds)
         self.assertIn("closed", kinds)
         self.assertTrue(any(t.allow_tasking for t in result.transitions if t.kind == "opened"))
+        self.assertEqual(len(result.agent_runs), 0)
 
 
 if __name__ == "__main__":

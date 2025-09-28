@@ -46,6 +46,8 @@ uv sync
 
    ```cmd
    uv run python tools/run_incident_pipeline.py data/ship/seaowl_sample.ndjson --pretty --flush-after 1800
+   # Include the GPT-5 agent (requires .env with OPENAI_API_KEY)
+   uv run python tools/run_incident_pipeline.py data/ship/seaowl_sample.ndjson --run-agent --agent-mode gpt --pretty
    ```
 
 6. **Task Sentinel-1 scenes** — filters the local catalog to the incident AOI/time window.

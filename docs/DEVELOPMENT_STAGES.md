@@ -44,7 +44,8 @@ Below is a tight, staged build that gets you a slick MVP quickly and then layers
 
    - GPT‑5 selects Cerulean query parameters (AOI padding, time window, filters, sort) and calls tools.
    - Fuses onboard stats + Cerulean metadata into a typed `IncidentSynopsis` with a scenario label (Validation vs First Discovery), confidence, rationale, and recommended actions (including `schedule_followup` for first‑discovery).
-   - Saves artifacts: `cerulean.geojson`, `cerulean_summary.json`, `incident_synopsis.json`, and an action trace.
+- Saves artifacts: `cerulean.geojson`, `cerulean_summary.json`, `incident_synopsis.json`, and an action trace.
+- Incident pipeline now calls the agent automatically on taskable transitions when enabled (e.g., via `tools/run_incident_pipeline.py --run-agent`).
 
 ## Streamlit MVP UI
 

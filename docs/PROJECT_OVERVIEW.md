@@ -53,6 +53,7 @@
   1. **Query Cerulean first (cheap):** `query_cerulean(aoi, last≈48h)` to see if any recent satellite‑detected slicks exist near the event. If matches are found, import polygons + probable source hints and proceed with the Validation & Contextualization playbook.
   2. **If no match (First Discovery):** characterize using onboard data only and explicitly schedule a next‑day Cerulean recheck after the model updates using our follow‑up scheduler. No local satellite processing in Phase 1.
   3. Keep a direct satellite query capability as a future extension for other layers (e.g., S2 for blooms) or research comparisons.
+  4. The incident pipeline automatically invokes the GPT-5 agent on taskable transitions, producing artifacts and scheduling follow-ups.
 
 # 4) GPT-5 Agent (make this shine)
 
