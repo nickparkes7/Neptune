@@ -210,19 +210,61 @@ class GPTAgentModel:
         errors = []
         for attempt in range(self.max_retries):
             try:
-                completion = client.chat.completions.create(
+                response = client.responses.create(
                     model=self.model_name,
                     temperature=self.temperature,
-                    messages=[
+                    input=[
                         {"role": "system", "content": prompt["system"]},
                         {"role": "user", "content": prompt["user"]},
                     ],
                 )
-                content = completion.choices[0].message.content.strip()
+                content = self._extract_response_text(response).strip()
                 return json.loads(content)
             except Exception as exc:  # noqa: BLE001
                 errors.append(exc)
         raise RuntimeError(f"GPT-5 call failed after {self.max_retries} attempts: {errors}")
+
+    def _extract_response_text(self, response: Any) -> str:
+        """Normalize response payloads from the Responses API to a text blob."""
+        output_text = getattr(response, "output_text", None)
+        if isinstance(output_text, str) and output_text.strip():
+            return output_text
+
+        response_dict: Dict[str, Any] | None = None
+        if hasattr(response, "model_dump"):
+            response_dict = response.model_dump()
+        elif isinstance(response, dict):
+            response_dict = response
+
+        if isinstance(response_dict, dict):
+            output_items = response_dict.get("output")
+            if isinstance(output_items, list):
+                collected: list[str] = []
+                for item in output_items:
+                    item_type = item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
+                    if item_type != "message":
+                        continue
+                    content_items = (
+                        item.get("content")
+                        if isinstance(item, dict)
+                        else getattr(item, "content", None)
+                    )
+                    if not content_items:
+                        continue
+                    if not isinstance(content_items, list):
+                        content_items = [content_items]
+                    for content_item in content_items:
+                        text = None
+                        if isinstance(content_item, dict):
+                            text = content_item.get("text") or content_item.get("content")
+                        else:
+                            text = getattr(content_item, "text", None) or getattr(content_item, "content", None)
+                        if isinstance(text, str):
+                            collected.append(text)
+                if collected:
+                    return "".join(collected)
+
+        raise RuntimeError("GPT-5 returned empty response content")
 
     def _plan_payload(self, event: SuspectedSpillEvent, bounds: QueryBounds) -> Dict[str, Any]:
         return {
