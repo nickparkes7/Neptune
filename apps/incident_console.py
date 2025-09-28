@@ -42,33 +42,42 @@ def load_geojson(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
+def _log(logger: Optional[object], message: str) -> None:
+    if logger:
+        logger.write(message)
+
+
 def run_pipeline(
     input_path: Path,
     use_gpt: bool,
     logger: Optional[object] = None,
 ) -> tuple[pd.DataFrame, AgentRunResult, SuspectedSpillEvent]:
-    if logger:
-        logger.write("Loading SeaOWL telemetry…")
+    _log(logger, "📥 Loading SeaOWL telemetry…")
     df = load_timeseries(input_path)
-    if logger:
-        logger.write(f"Loaded {len(df):,} samples from {input_path.name}")
+    _log(logger, f"✔️ Loaded {len(df):,} samples from {input_path.name}")
 
-    if logger:
-        logger.write("Executing incident pipeline…")
+    _log(logger, "⚙️ Running anomaly → incident pipeline…")
     config = PipelineConfig(
         flush_after_s=1800,
         agent_enabled=True,
         agent_model=GPTAgentModel() if use_gpt else RuleBasedAgentModel(),
     )
     result = generate_transitions_from_ndjson(input_path, config=config)
-    if logger:
-        logger.write(f"Generated {len(result.transitions)} transitions")
+    _log(logger, f"✔️ Pipeline produced {len(result.transitions)} transitions")
+
     if not result.agent_runs:
         raise RuntimeError("Agent did not produce output. Check pipeline configuration.")
     agent_run = result.agent_runs[-1]
-    if logger:
-        scenario = agent_run.synopsis.scenario.replace("_", " ")
-        logger.write(f"Agent scenario: {scenario} (confidence {agent_run.synopsis.confidence:.2f})")
+    synopsis = agent_run.synopsis
+    scenario = synopsis.scenario.replace("_", " ")
+    _log(logger, f"🧠 Agent scenario: {scenario} (confidence {synopsis.confidence:.2f})")
+
+    for action in synopsis.recommended_actions[:3]:
+        _log(logger, f"   ↳ {action}")
+
+    if synopsis.followup_scheduled:
+        eta = synopsis.followup_eta.isoformat().replace("+00:00", "Z") if synopsis.followup_eta else "next Cerulean refresh"
+        _log(logger, f"📅 Follow-up scheduled for {eta}")
 
     incident: Optional[SuspectedSpillEvent] = None
     for transition in result.transitions:
