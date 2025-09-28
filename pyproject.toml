@@ -16,7 +16,8 @@ dependencies = [
   "shapely>=2.0.0",
   "openai>=1.35.0",
   "streamlit>=1.38.0",
-  "pydeck>=0.8.0"
+  "pydeck>=0.8.0",
+  "streamlit-autorefresh>=1.0.1",
 ]
 
 [tool.setuptools]

@@ -83,6 +83,22 @@
 6. **Actionables** – agent proposes 3 sampling waypoints + a JSON incident brief (downloadable in the Streamlit console).
 7. **Codex cameo** – you ask for a new plot (“contrast vs. wind speed” or “bbp vs. chlorophyll”), Codex writes it live.
 
+# 5.1) Unified Console (Phase 1 implementation)
+
+- Single Streamlit app (`apps/console.py`) with two views:
+  - Telemetry: tails `data/ship/seaowl_live.ndjson` from `tools/sim_seaowl.py --sleep`, shows rolling timeseries and ship track, highlights warn/alarm states, and can auto‑run the agent on alarms.
+  - Incidents: lists detected incidents and opens details (Cerulean overlays, synopsis, brief download, trace tail).
+
+# 5.2) How to run (quickstart)
+
+```cmd
+uv run tools/sim_seaowl.py --duration 3600 --sample-rate 1 \
+  --output data/ship/seaowl_live.ndjson --event-start 600 --event-duration 300 \
+  --event-magnitude 2.5 --sleep
+
+uv run streamlit run apps/console.py  # unified: Telemetry + Incidents
+```
+
 # 6) What we’ll build this week (checklist)
 
 - [ ] **fvdb schema** for: ship_timeseries, S1 VV/VH patches, S2 bands, optional VIIRS/PACE layers.

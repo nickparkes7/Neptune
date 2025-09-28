@@ -4,6 +4,14 @@
 - Focus: continuous SeaOWL monitoring, on-demand Sentinel‑1 pulls, fast SAR slick detection, agent brief, Streamlit UI.
 - Minimal update: after a SeaOWL anomaly, the agent first calls `query_cerulean(aoi, last≈48h)`. If Cerulean returns polygons/source hints, we use them for validation/context. If it returns nothing, we characterize with onboard data only, mark the situation as “first discovery,” and schedule a next-day Cerulean re-query after the model updates. No direct satellite processing in Phase 1; the satellite pathway is kept as a future extension for other data layers (e.g., algal blooms).
 
+## Live Streaming & Console (Phase 1 refinement)
+
+- Streaming source (synthetic): `tools/sim_seaowl.py --sleep` writes NDJSON line‑by‑line at 1 Hz to `data/ship/seaowl_live.ndjson` with a configurable injected event.
+- Unified Console: `apps/console.py`
+  - Telemetry view: starts/stops the simulator, tails the live NDJSON, shows rolling timeseries and a ship track map, and highlights warn/alarm states in near‑real‑time.
+  - Incidents view: lists incidents as they appear and lets you drill down into details (Cerulean overlays, synopsis, brief download).
+  - Uses an in‑memory ring buffer and `st_autorefresh` to update roughly once per second without a backend broker.
+
 <!-- STATUS:PHASE1:BEGIN -->
 
 Progress: 8/12 steps done · 0 in progress · 0 blocked

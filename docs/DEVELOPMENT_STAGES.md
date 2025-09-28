@@ -50,11 +50,9 @@ Below is a tight, staged build that gets you a slick MVP quickly and then layers
 
 ## Streamlit MVP UI
 
-- **Map:** live ship track, SeaOWL anomaly markers, Cerulean polygons (only after trigger).
-- **Timeseries:** oil-fluor signal + context channels.
-- **Incident pane:** scenario, confidence, summary, waypoints; shows scheduled follow-up when first-discovery.
-- **Chat (GPT-5):** “Explain this event,” “show most likely source area,” “propose 3 sampling stops in the next 2 hrs.”
-- **Implementation:** `uv run streamlit run apps/incident_console.py` runs the incident console built with Streamlit + PyDeck; supports toggling GPT-5 vs rule-based agent, shows JSON brief download.
+- Unified console (`apps/console.py`)
+  - Telemetry view: continuously tails a live NDJSON (`data/ship/seaowl_live.ndjson` via `tools/sim_seaowl.py --sleep`), renders rolling timeseries + ship track, and surfaces live warn/alarm states.
+  - Incidents view: lists incidents created by the agent on alarm episodes; provides drill‑down to overlays, synopsis, metrics, and JSON brief download.
 
 ## Why this nails your narrative
 
