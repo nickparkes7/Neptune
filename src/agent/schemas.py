@@ -34,7 +34,7 @@ class AgentPlan(CompatBaseModel):
     lookback_hours: int = Field(..., description="Hours before event end to include")
     lookahead_hours: int = Field(..., description="Hours after event end to include")
     min_source_score: float = Field(..., description="Minimum Cerulean source score")
-    only_active: bool = Field(True, description="Only return active slicks")
+    only_active: bool = Field(False, description="Only return active slicks")
     filters: List[str] = Field(default_factory=list, description="Additional CQL filters")
     sort_by: str = Field("-max_source_collated_score", description="Sort expression")
     limit: int = Field(100, description="Maximum slicks to return")

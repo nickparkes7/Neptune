@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, Protocol
 
@@ -43,7 +43,7 @@ class RuleBasedAgentModel:
     GPT-backed model so integration points remain identical.
     """
 
-    default_bounds: QueryBounds = QueryBounds()
+    default_bounds: QueryBounds = field(default_factory=QueryBounds)
 
     def generate_plan(self, event: SuspectedSpillEvent, bounds: QueryBounds | None = None) -> AgentPlan:
         bounds = bounds or self.default_bounds
@@ -65,7 +65,7 @@ class RuleBasedAgentModel:
             lookback_hours=lookback,
             lookahead_hours=lookahead,
             min_source_score=min_score,
-            only_active=True,
+            only_active=False,
             filters=filters,
             sort_by="-max_source_collated_score",
             limit=limit,
@@ -136,8 +136,8 @@ class RuleBasedAgentModel:
 class GPTAgentModel:
     """OpenAI GPT-5 powered agent model implementation."""
 
-    model_name: str = "gpt-5.1-mini"
-    temperature: float = 0.0
+    model_name: str = "gpt-5-mini"
+    temperature: float = 1.0
     max_retries: int = 2
     api_key_env: str = "OPENAI_API_KEY"
     client: Any | None = None
@@ -188,6 +188,11 @@ class GPTAgentModel:
             data["recommended_actions"] = []
         if "artifacts" not in data:
             data["artifacts"] = {}
+        # Ensure all artifact values are strings
+        if "artifacts" in data and isinstance(data["artifacts"], dict):
+            for key, value in data["artifacts"].items():
+                if not isinstance(value, str):
+                    data["artifacts"][key] = json.dumps(value)
         if "followup_scheduled" not in data:
             data["followup_scheduled"] = followup_scheduled
         if "followup_eta" not in data and followup_eta is not None:

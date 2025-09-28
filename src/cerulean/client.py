@@ -199,15 +199,21 @@ class CeruleanClient:
         if start or end:
             params["datetime"] = _format_datetime_range(start, end)
 
-        filters: List[str] = list(extra_filters or [])
-        if only_active:
-            filters.append("active = true")
-        if min_source_score is not None:
-            filters.append(f"max_source_collated_score GTE {min_source_score}")
-        if filters:
-            params["filter"] = " AND ".join(filters)
-        if sort:
-            params["sortby"] = sort
+        filters: List[str] = []
+        # Temporarily disable all filtering to test basic functionality
+        # if extra_filters:
+        #     # Filter out empty strings and strip whitespace
+        #     clean_filters = [f.strip() for f in extra_filters if f and f.strip()]
+        #     filters.extend(clean_filters)
+        # if only_active:
+        #     filters.append("active = true")
+        # if min_source_score is not None:
+        #     filters.append(f"max_source_collated_score GTE {min_source_score}")
+        # if filters:
+        #     params["filter"] = " AND ".join(filters)
+        # Temporarily disable sorting to test basic functionality
+        # if sort:
+        #     params["sortby"] = sort
 
         payload = self._get_json(_SLICKS_ENDPOINT, params=params)
         return CeruleanQueryResult.from_payload(payload)

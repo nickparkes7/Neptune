@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, List, Optional
@@ -27,9 +27,9 @@ DEFAULT_ARTIFACT_ROOT = Path("artifacts")
 class AgentConfig:
     """Configuration for the orchestration agent."""
 
-    query_bounds: QueryBounds = QueryBounds()
+    query_bounds: QueryBounds = field(default_factory=QueryBounds)
     artifact_root: Path = DEFAULT_ARTIFACT_ROOT
-    followup_store: Path = Path("data/cerulean/followups.ndjson")
+    followup_store: Path = field(default_factory=lambda: Path("data/cerulean/followups.ndjson"))
     cerulean_limit_default: int = 100
 
 
