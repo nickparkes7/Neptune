@@ -62,10 +62,12 @@ uv sync
 
 8. **Run agent orchestration** — feeds a stored `SuspectedSpillEvent` through the GPT-5 agent (requires `OPENAI_API_KEY`).
 
-   ```cmd
-   export OPENAI_API_KEY=...  # GPT-5 key
-   uv run python tools/run_agent.py tests/data/sample_event.json --artifact-root artifacts/agent_demo --followup-store data/cerulean/followups.ndjson
-   ```
+```cmd
+echo "OPENAI_API_KEY=your_key_here" > .env
+uv run python tools/run_agent.py tests/data/sample_event.json --artifact-root artifacts/agent_demo --followup-store data/cerulean/followups.ndjson
+```
+
+> `tools/load_env.py` automatically loads `.env` for most entry points. When running custom scripts, call it before constructing the agent if needed.
 
 ## Cerulean Follow-ups
 
