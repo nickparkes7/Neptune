@@ -57,6 +57,11 @@ def test_agent_with_matches(tmp_path: Path, sample_event: SuspectedSpillEvent):
     assert synopsis.followup_scheduled is False
     geojson_path = next(p for p in result.artifacts if p.name == "cerulean.geojson")
     assert geojson_path.exists()
+    brief_path = next(p for p in result.artifacts if p.name == "incident_brief.json")
+    data = json.loads(brief_path.read_text())
+    assert data["scenario"] == "validation_context"
+    assert data["cerulean_result"]["number_returned"] == payload["numberReturned"]
+    assert "incident_brief" in synopsis.artifacts
     assert client.calls
     call = client.calls[0]
     assert call["limit"] >= 100
@@ -88,6 +93,9 @@ def test_agent_with_no_matches_schedules_followup(tmp_path: Path, sample_event: 
     assert len(lines) == 1
     entry = json.loads(lines[0])
     assert entry["event_id"] == "test-event"
+    brief_path = next(p for p in result.artifacts if p.name == "incident_brief.json")
+    brief_data = json.loads(brief_path.read_text())
+    assert brief_data["scenario"] == "first_discovery"
     summary_path = next(p for p in result.artifacts if p.name == "cerulean_summary.json")
     summary = json.loads(summary_path.read_text())
     assert summary["slick_count"] == 0

@@ -54,6 +54,7 @@
   2. **If no match (First Discovery):** characterize using onboard data only and explicitly schedule a next‑day Cerulean recheck after the model updates using our follow‑up scheduler. No local satellite processing in Phase 1.
   3. Keep a direct satellite query capability as a future extension for other layers (e.g., S2 for blooms) or research comparisons.
   4. The incident pipeline automatically invokes the GPT-5 agent on taskable transitions, producing artifacts and scheduling follow-ups.
+  5. Each agent run emits an `incident_brief.json` containing scenario, confidence, Cerulean parameters, summary metrics, follow-up plan, and artifact paths for downstream integration.
 
 # 4) GPT-5 Agent (make this shine)
 

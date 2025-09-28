@@ -19,6 +19,7 @@ from cerulean import (
 
 from .model import AgentModel, GPTAgentModel, RuleBasedAgentModel
 from .schemas import ActionRecord, AgentPlan, IncidentSynopsis, QueryBounds
+from report import write_incident_brief
 
 DEFAULT_ARTIFACT_ROOT = Path("artifacts")
 
@@ -174,6 +175,16 @@ def run_agent_for_event(
         artifact_map[path.name] = str(path)
 
     synopsis.artifacts.update(artifact_map)
+
+    brief_path = write_incident_brief(
+        event,
+        plan=plan,
+        synopsis=synopsis,
+        cerulean=result,
+        artifact_dir=artifact_dir,
+    )
+    artifacts.append(brief_path)
+    synopsis.artifacts.setdefault("incident_brief", str(brief_path))
 
     synopsis_path = artifact_dir / "incident_synopsis.json"
     synopsis_path.write_text(_json_dumps(synopsis.model_dump(mode="json")))

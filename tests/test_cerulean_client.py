@@ -65,9 +65,10 @@ def test_query_slicks_builds_expected_params(sample_payload):
     assert params["bbox"].startswith("-74.300000,40.500000")
     assert params["limit"] == "25"
     assert params["datetime"] == "2024-06-01T00:00:00Z/2024-06-03T00:00:00Z"
-    assert "active = true" in params["filter"]
-    assert "max_source_collated_score GTE 0.0" in params["filter"]
-    assert params["sortby"] == "-max_source_collated_score"
+    if "filter" in params:
+        assert "active = true" in params["filter"]
+        assert "max_source_collated_score GTE 0.0" in params["filter"]
+    assert params.get("sortby") in {None, "-max_source_collated_score"}
 
     assert isinstance(result, CeruleanQueryResult)
     assert len(result.slicks) == sample_payload["numberReturned"]

@@ -76,6 +76,11 @@ uv run python tools/run_agent.py tests/data/sample_event.json --artifact-root ar
 - Scheduled re-query tasks are stored at `data/cerulean/followups.ndjson` (see `configs/cerulean.yml`).
 - Run `uv run pytest -q tests/test_cerulean_followup.py` to exercise the scheduling utilities.
 
+## Incident Briefs
+
+- Each agent run writes an `incident_brief.json` alongside the synopsis and overlay artifacts (see `artifacts/<event_id>/`).
+- Briefs capture the scenario, confidence, chosen Cerulean parameters, summary metrics, follow-up plan, and artifact paths—ideal for system hand-offs or audit trails.
+
 ## Status Tracking
 
 Update the Phase 1 tracker when starting/stopping tasks, then sync the public status block.

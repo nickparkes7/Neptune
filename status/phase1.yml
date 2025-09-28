@@ -73,11 +73,11 @@ steps:
   artifacts: []
 - id: 9_brief
   name: Incident brief (JSON+PNG)
-  status: pending
-  owner: null
-  started: null
-  finished: null
-  notes: null
+  status: done
+  owner: nicholas
+  started: '2025-09-28T00:25:00Z'
+  finished: '2025-09-28T00:27:30Z'
+  notes: JSON brief generated from agent outputs; stored alongside artifacts
   artifacts: []
 - id: 10_streamlit
   name: Streamlit app

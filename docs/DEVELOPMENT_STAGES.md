@@ -46,6 +46,7 @@ Below is a tight, staged build that gets you a slick MVP quickly and then layers
    - Fuses onboard stats + Cerulean metadata into a typed `IncidentSynopsis` with a scenario label (Validation vs First Discovery), confidence, rationale, and recommended actions (including `schedule_followup` for first‑discovery).
 - Saves artifacts: `cerulean.geojson`, `cerulean_summary.json`, `incident_synopsis.json`, and an action trace.
 - Incident pipeline now calls the agent automatically on taskable transitions when enabled (e.g., via `tools/run_incident_pipeline.py --run-agent`).
+- Generates a machine-readable `incident_brief.json` snapshot summarising scenario, confidence, query parameters, metrics, follow-ups, and artifact links for downstream systems.
 
 ## Streamlit MVP UI
 
