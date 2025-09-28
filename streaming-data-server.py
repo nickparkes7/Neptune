@@ -438,28 +438,78 @@ class IncidentPipelineMonitor:
             return
 
         model = self._ensure_agent_model()
-        client = self._cerulean_client()
+        primary_client = self._cerulean_client()
+        primary_label = "stub" if getattr(primary_client, "_is_stub", False) else "live"
+        clients_to_try = [(primary_client, primary_label)]
+        if primary_label != "stub":
+            clients_to_try.append((self._cerulean_client(force_stub=True), "stub"))
+
+        last_error: Optional[BaseException] = None
+        for client, label in clients_to_try:
+            try:
+                run_agent_for_event(
+                    incident,
+                    model=model,
+                    client=client,
+                    config=self.agent_config,
+                    timestamp=transition.at,
+                )
+                note = " (Cerulean fallback)" if label == "stub" and last_error else ""
+                print(
+                    "[IncidentPipelineMonitor] Agent run complete for incident "
+                    f"{incident.event_id}{note}."
+                )
+                if label == "stub" and last_error:
+                    self._annotate_synopsis_with_fallback(
+                        synopsis_path,
+                        last_error,
+                    )
+                _update_incident_cache_status(
+                    incident.event_id or self._slugify(incident.ts_peak.isoformat()),
+                    "ready",
+                    event=_event_payload(incident),
+                )
+                return
+            except CeruleanError as exc:
+                last_error = exc
+                print(
+                    "[IncidentPipelineMonitor] Cerulean error for incident "
+                    f"{incident.event_id} using {label} client: {exc}"
+                )
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                print(
+                    "[IncidentPipelineMonitor] Agent run failed for incident "
+                    f"{incident.event_id} using {label} client: {exc}"
+                )
+
+        if last_error is not None:
+            print(
+                "[IncidentPipelineMonitor] Exhausted Cerulean fallbacks for incident "
+                f"{incident.event_id}: {last_error}"
+            )
+
+    def _annotate_synopsis_with_fallback(self, path: Path, reason: BaseException) -> None:
+        try:
+            payload = json.loads(path.read_text())
+        except Exception as exc:  # noqa: BLE001
+            print(
+                "[IncidentPipelineMonitor] Failed to annotate synopsis fallback for "
+                f"{path.parent.name}: {exc}"
+            )
+            return
+
+        metadata = payload.setdefault("metadata", {})
+        metadata["cerulean_client"] = "stub"
+        metadata["cerulean_fallback_reason"] = str(reason)
 
         try:
-            run_agent_for_event(
-                incident,
-                model=model,
-                client=client,
-                config=self.agent_config,
-                timestamp=transition.at,
-            )
-            print(
-                f"[IncidentPipelineMonitor] Agent run complete for incident {incident.event_id}."
-            )
-            _update_incident_cache_status(
-                incident.event_id or self._slugify(incident.ts_peak.isoformat()),
-                "ready",
-                event=_event_payload(incident),
-            )
-        except CeruleanError as exc:
-            print(f"[IncidentPipelineMonitor] Cerulean error for incident {incident.event_id}: {exc}")
+            path.write_text(json.dumps(payload, indent=2))
         except Exception as exc:  # noqa: BLE001
-            print(f"[IncidentPipelineMonitor] Agent run failed for incident {incident.event_id}: {exc}")
+            print(
+                "[IncidentPipelineMonitor] Failed to persist synopsis fallback annotation for "
+                f"{path.parent.name}: {exc}"
+            )
 
     def _ensure_agent_model(self):
         with self._lock:
@@ -484,9 +534,11 @@ class IncidentPipelineMonitor:
             return self._agent_model
 
     @staticmethod
-    def _cerulean_client():
-        if os.getenv("CERULEAN_STUB") == "1":
+    def _cerulean_client(*, force_stub: bool = False):
+        if force_stub or os.getenv("CERULEAN_STUB") == "1":
             class _EmptyCeruleanClient:
+                _is_stub = True
+
                 def query_slicks(
                     self,
                     *_,
@@ -495,7 +547,9 @@ class IncidentPipelineMonitor:
                     return CeruleanQueryResult(slicks=[], number_matched=0, number_returned=0, links=[])
 
             return _EmptyCeruleanClient()
-        return CeruleanClient()
+        client = CeruleanClient()
+        setattr(client, "_is_stub", False)
+        return client
 
     @staticmethod
     def _transition_key(transition) -> str:
