@@ -159,7 +159,8 @@ function App() {
     data: telemetryData,
     isConnected,
     connectionStatus,
-    lastUpdateTime
+    lastUpdateTime,
+    sensorStatus
   } = useStreamingData({
     websocketUrl: 'ws://localhost:8001',
     maxBufferSize: 1000,
@@ -168,6 +169,14 @@ function App() {
   });
 
   const isLoading = !isConnected && telemetryData.length === 0;
+  const seaowlStreaming = sensorStatus?.seaowl?.streaming ?? (isConnected && telemetryData.length > 0);
+  const seaowlLastTimestamp = sensorStatus?.seaowl?.last_timestamp;
+  const lastUpdateDisplay = seaowlLastTimestamp
+    ? (() => {
+        const parsed = new Date(seaowlLastTimestamp);
+        return Number.isNaN(parsed.getTime()) ? seaowlLastTimestamp : parsed.toLocaleTimeString();
+      })()
+    : lastUpdateTime;
 
   const handleIncidentSelect = (incidentId: string) => {
     setSelectedIncidentId(incidentId);
@@ -233,9 +242,10 @@ function App() {
         <div className="sidebar-left">
           <Sidebar
             apiBase={API_BASE}
-            lastUpdateTime={lastUpdateTime}
+            lastUpdateTime={lastUpdateDisplay}
             connectionStatus={connectionStatus}
-            isStreaming={isConnected}
+            isStreaming={seaowlStreaming}
+            sensorStatus={sensorStatus}
             agentBrief={agentBrief}
             onOpenAgentBrief={loadAgentBrief}
             isBriefLoading={briefLoading}

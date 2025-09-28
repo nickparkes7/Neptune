@@ -23,6 +23,13 @@ export interface TelemetryData {
   oil_alarm?: boolean;
 }
 
+export interface SensorStatus {
+  streaming: boolean;
+  last_timestamp?: string | null;
+}
+
+export type SensorStatusMap = Record<string, SensorStatus>;
+
 export interface Incident {
   incident_id: string;
   scenario: string;

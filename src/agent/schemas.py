@@ -9,7 +9,7 @@ from pydantic import Field, validator
 
 from common.pydantic_compat import CompatBaseModel
 
-ScenarioLabel = Literal["validation_context", "first_discovery"]
+ScenarioLabel = Literal["validation_context", "first_discovery", "suspected_algal_bloom"]
 
 
 class QueryBounds(CompatBaseModel):

@@ -95,7 +95,7 @@ const IncidentList: React.FC<Props> = ({ incidents, onIncidentSelect }) => {
                   <div className="incident-card-header">
                     <span className="incident-card-title">
                       {incident.status === 'analyzing'
-                        ? 'Analyzing SeaOWL anomaly…'
+                        ? 'Analyzing onboard anomaly…'
                         : scenarioTitle(incident.scenario)}
                     </span>
                     <span className="incident-card-time">

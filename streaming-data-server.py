@@ -9,7 +9,7 @@ import os
 import time
 import websockets
 from pathlib import Path
-from typing import Set, Dict, Any, Optional, Tuple
+from typing import Set, Dict, Any, Optional, Tuple, List
 import threading
 import queue
 from datetime import datetime, timezone
@@ -84,7 +84,7 @@ def _update_incident_cache_from_transition(transition) -> None:
             incident_id,
             {
                 "incident_id": incident_id,
-                "summary": "Analyzing SeaOWL anomaly…",
+                "summary": "Analyzing onboard anomaly…",
                 "scenario": "pending_analysis",
                 "confidence": 0.0,
             },
@@ -103,18 +103,26 @@ def _update_incident_cache_from_transition(transition) -> None:
             record.setdefault("ts_peak", _to_iso(transition.at))
 
         record["updated_at"] = _to_iso(transition.at)
-        record.setdefault("summary", "Analyzing SeaOWL anomaly…")
+        record.setdefault("summary", "Analyzing onboard anomaly…")
         record.setdefault("scenario", "pending_analysis")
         record.setdefault("confidence", 0.0)
 
 
-def _update_incident_cache_status(incident_id: str, status: str, *, event: Optional[Dict[str, Any]] = None) -> None:
+def _update_incident_cache_status(
+    incident_id: str,
+    status: str,
+    *,
+    event: Optional[Dict[str, Any]] = None,
+    summary: Optional[str] = None,
+    scenario: Optional[str] = None,
+    confidence: Optional[float] = None,
+) -> None:
     with INCIDENT_CACHE_LOCK:
         record = INCIDENT_CACHE.setdefault(
             incident_id,
             {
                 "incident_id": incident_id,
-                "summary": "Analyzing SeaOWL anomaly…",
+                "summary": "Analyzing onboard anomaly…",
                 "scenario": "pending_analysis",
                 "confidence": 0.0,
             },
@@ -125,20 +133,51 @@ def _update_incident_cache_status(incident_id: str, status: str, *, event: Optio
             if event.get("ts_peak"):
                 record["ts_peak"] = event["ts_peak"]
         record.setdefault("updated_at", _to_iso(datetime.now(timezone.utc)))
+        if summary:
+            record["summary"] = summary
+        if scenario:
+            record["scenario"] = scenario
+        if confidence is not None:
+            record["confidence"] = confidence
 
 
 DEFAULT_DATA_PATH_NYC = Path("data/ship/seaowl_live.ndjson")
 DEFAULT_DATA_PATH_GULF = Path("data/ship/seaowl_gulf_live.ndjson")
+DEFAULT_ECO_FL_PATH_NYC = Path("data/ship/ecofl_live.ndjson")
+DEFAULT_ECO_FL_PATH_GULF = Path("data/ship/ecofl_gulf_live.ndjson")
 
 
 class TelemetryStreamer:
-    def __init__(self, data_path: Path):
+    def __init__(
+        self,
+        data_path: Path,
+        *,
+        sensor_watch_specs: Optional[Dict[str, Tuple[Path, str]]] = None,
+        primary_sensor_id: str = "seaowl",
+        status_ttl_s: float = 5.0,
+    ):
         self.clients: Set[websockets.WebSocketServerProtocol] = set()
         self.data_queue = queue.Queue()
         self.incident_queue = queue.Queue()
         self.last_position = 0
         self.data_path = data_path
         self.running = True
+        self.primary_sensor_id = primary_sensor_id
+        self.sensor_watch_specs = {
+            sensor: (path.resolve(), ts_key)
+            for sensor, (path, ts_key) in (sensor_watch_specs or {}).items()
+        }
+        self.status_ttl_s = max(status_ttl_s, 1.0)
+        self.sensor_state: Dict[str, Dict[str, Optional[str]]] = {}
+        self.sensor_seen: Dict[str, float] = {}
+        self.sensor_state_lock = threading.Lock()
+        self._status_threads: List[threading.Thread] = []
+        self._last_status_broadcast = 0.0
+        self.sensor_state[self.primary_sensor_id] = {"last_timestamp": None}
+        self.sensor_seen[self.primary_sensor_id] = 0.0
+        for sensor in self.sensor_watch_specs:
+            self.sensor_state.setdefault(sensor, {"last_timestamp": None})
+            self.sensor_seen.setdefault(sensor, 0.0)
 
     async def register_client(self, websocket):
         """Register a new WebSocket client."""
@@ -148,11 +187,11 @@ class TelemetryStreamer:
         # Send initial data to new client
         try:
             initial_data = self.get_recent_data(100)  # Last 100 points
-            if initial_data:
-                await websocket.send(json.dumps({
-                    "type": "initial",
-                    "data": initial_data
-                }))
+            payload = {"type": "initial", "data": initial_data}
+            status_snapshot = self._build_status_snapshot()
+            if status_snapshot:
+                payload["sensors"] = status_snapshot
+            await websocket.send(json.dumps(payload))
         except Exception as e:
             print(f"Error sending initial data: {e}")
 
@@ -161,13 +200,96 @@ class TelemetryStreamer:
         self.clients.discard(websocket)
         print(f"Client disconnected. Total clients: {len(self.clients)}")
 
+    def start_sensor_watchers(self) -> None:
+        for sensor_id, (path, ts_key) in self.sensor_watch_specs.items():
+            thread = threading.Thread(
+                target=self._watch_sensor_file,
+                args=(sensor_id, path, ts_key),
+                daemon=True,
+            )
+            thread.start()
+            self._status_threads.append(thread)
+
+    def _record_sensor_heartbeat(
+        self, sensor_id: str, timestamp_value: Optional[Any]
+    ) -> None:
+        if isinstance(timestamp_value, datetime):
+            ts_text = (
+                timestamp_value.astimezone(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
+        elif timestamp_value:
+            ts_text = str(timestamp_value)
+        else:
+            ts_text = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        now = time.time()
+        with self.sensor_state_lock:
+            self.sensor_state.setdefault(sensor_id, {"last_timestamp": None})
+            self.sensor_seen[sensor_id] = now
+            self.sensor_state[sensor_id]["last_timestamp"] = ts_text
+
+    def _build_status_snapshot(self) -> Dict[str, Dict[str, Any]]:
+        snapshot: Dict[str, Dict[str, Any]] = {}
+        now = time.time()
+        with self.sensor_state_lock:
+            for sensor_id, state in self.sensor_state.items():
+                last_ts = state.get("last_timestamp")
+                last_seen = self.sensor_seen.get(sensor_id, 0.0)
+                streaming = last_seen > 0.0 and (now - last_seen) <= self.status_ttl_s
+                snapshot[sensor_id] = {
+                    "streaming": streaming,
+                    "last_timestamp": last_ts,
+                }
+        return snapshot
+
+    def _watch_sensor_file(
+        self, sensor_id: str, path: Path, timestamp_key: str
+    ) -> None:
+        last_position = 0
+        while self.running:
+            try:
+                if not path.exists():
+                    time.sleep(0.5)
+                    continue
+
+                current_size = path.stat().st_size
+                if current_size < last_position:
+                    last_position = 0
+
+                if current_size > last_position:
+                    with path.open("r", encoding="utf-8") as handle:
+                        handle.seek(last_position)
+                        lines = handle.readlines()
+                        last_position = handle.tell()
+
+                    for line in lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            record = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        ts_value = (
+                            record.get(timestamp_key)
+                            or record.get("timestamp")
+                            or record.get("ts")
+                        )
+                        self._record_sensor_heartbeat(sensor_id, ts_value)
+
+                time.sleep(0.1)
+            except Exception as exc:  # noqa: BLE001
+                print(f"Error in sensor watcher for {sensor_id}: {exc}")
+                time.sleep(1)
+
     def get_recent_data(self, count: int = 100) -> list:
         """Get the most recent data points."""
         if not self.data_path.exists():
             return []
 
         try:
-            with open(self.data_path, 'r') as f:
+            with open(self.data_path, "r") as f:
                 # Read from end efficiently
                 f.seek(0, 2)
                 file_size = f.tell()
@@ -177,7 +299,7 @@ class TelemetryStreamer:
                 f.seek(max(0, file_size - chunk_size))
 
                 content = f.read()
-                lines = content.strip().split('\n')
+                lines = content.strip().split("\n")
 
                 # Take last N lines and parse
                 recent_lines = lines[-count:] if len(lines) > count else lines
@@ -211,7 +333,7 @@ class TelemetryStreamer:
 
                 if current_size > self.last_position:
                     # Read new data
-                    with open(self.data_path, 'r') as f:
+                    with open(self.data_path, "r") as f:
                         f.seek(self.last_position)
                         new_lines = f.readlines()
                         self.last_position = f.tell()
@@ -222,6 +344,10 @@ class TelemetryStreamer:
                         if line:
                             try:
                                 record = json.loads(line)
+                                self._record_sensor_heartbeat(
+                                    self.primary_sensor_id,
+                                    record.get("ts") or record.get("timestamp"),
+                                )
                                 self.data_queue.put(record)
                             except json.JSONDecodeError:
                                 continue
@@ -260,6 +386,24 @@ class TelemetryStreamer:
                     except queue.Empty:
                         break
 
+                status_snapshot = None
+                now = time.time()
+                if new_data:
+                    status_snapshot = self._build_status_snapshot()
+                    self._last_status_broadcast = now
+                elif now - self._last_status_broadcast >= 1.0:
+                    status_snapshot = self._build_status_snapshot()
+                    self._last_status_broadcast = now
+
+                if pending_messages:
+                    if status_snapshot is not None:
+                        for payload in pending_messages:
+                            payload.setdefault("sensors", status_snapshot)
+                elif status_snapshot is not None:
+                    pending_messages.append(
+                        {"type": "status", "sensors": status_snapshot}
+                    )
+
                 if pending_messages and self.clients:
                     disconnected = set()
                     for client in self.clients.copy():
@@ -277,7 +421,9 @@ class TelemetryStreamer:
                     self.clients -= disconnected
 
                     if new_data:
-                        print(f"Broadcasted {len(new_data)} data points to {len(self.clients)} clients")
+                        print(
+                            f"Broadcasted {len(new_data)} data points to {len(self.clients)} clients"
+                        )
 
                 await asyncio.sleep(0.05)  # 20Hz check rate for smooth streaming
 
@@ -316,6 +462,7 @@ class IncidentPipelineMonitor:
         flush_after_s: float = 900.0,
         incident_queue: Optional[queue.Queue] = None,
         agent_enabled: bool = True,
+        eco_path: Optional[Path] = None,
     ) -> None:
         self.data_path = data_path
         self.poll_interval = poll_interval
@@ -330,6 +477,8 @@ class IncidentPipelineMonitor:
         )
         self.agent_config = AgentConfig()
         self.agent_config.artifact_root.mkdir(parents=True, exist_ok=True)
+        if eco_path is not None:
+            self.agent_config.eco_fl_path = eco_path
         self._agent_model: Optional[object] = None
         self._seen_transitions: Set[str] = set()
         self._processed_signatures: Dict[str, Set[str]] = {}
@@ -365,7 +514,9 @@ class IncidentPipelineMonitor:
 
         from anomaly import generate_transitions_from_ndjson
 
-        result = generate_transitions_from_ndjson(self.data_path, config=self.pipeline_config)
+        result = generate_transitions_from_ndjson(
+            self.data_path, config=self.pipeline_config
+        )
         transitions = result.transitions
 
         now_utc = datetime.now(timezone.utc)
@@ -411,7 +562,9 @@ class IncidentPipelineMonitor:
                         "kind": transition.kind,
                         "at": transition.at.isoformat().replace("+00:00", "Z"),
                         "incident_id": transition.incident.event_id,
-                        "ts_peak": transition.incident.ts_peak.isoformat().replace("+00:00", "Z"),
+                        "ts_peak": transition.incident.ts_peak.isoformat().replace(
+                            "+00:00", "Z"
+                        ),
                         "lat": transition.incident.lat,
                         "lon": transition.incident.lon,
                         "oil_max": transition.incident.oil_stats.max,
@@ -431,7 +584,9 @@ class IncidentPipelineMonitor:
         if not self._agent_enabled:
             return
         incident = transition.incident
-        artifact_dir = self.agent_config.artifact_root / (incident.event_id or self._slugify(incident.ts_peak.isoformat()))
+        artifact_dir = self.agent_config.artifact_root / (
+            incident.event_id or self._slugify(incident.ts_peak.isoformat())
+        )
         synopsis_path = artifact_dir / "incident_synopsis.json"
         if synopsis_path.exists():
             print(
@@ -449,7 +604,7 @@ class IncidentPipelineMonitor:
         last_error: Optional[BaseException] = None
         for client, label in clients_to_try:
             try:
-                run_agent_for_event(
+                result = run_agent_for_event(
                     incident,
                     model=model,
                     client=client,
@@ -470,6 +625,9 @@ class IncidentPipelineMonitor:
                     incident.event_id or self._slugify(incident.ts_peak.isoformat()),
                     "ready",
                     event=_event_payload(incident),
+                    summary=result.synopsis.summary,
+                    scenario=result.synopsis.scenario,
+                    confidence=result.synopsis.confidence,
                 )
                 return
             except CeruleanError as exc:
@@ -491,7 +649,9 @@ class IncidentPipelineMonitor:
                 f"{incident.event_id}: {last_error}"
             )
 
-    def _annotate_synopsis_with_fallback(self, path: Path, reason: BaseException) -> None:
+    def _annotate_synopsis_with_fallback(
+        self, path: Path, reason: BaseException
+    ) -> None:
         try:
             payload = json.loads(path.read_text())
         except Exception as exc:  # noqa: BLE001
@@ -523,7 +683,9 @@ class IncidentPipelineMonitor:
                     self._agent_model = GPTAgentModel()
                     # Trigger lazy client init to validate key quickly
                     self._agent_model._get_client()  # type: ignore[attr-defined]
-                    print("[IncidentPipelineMonitor] Using GPTAgentModel for agent runs.")
+                    print(
+                        "[IncidentPipelineMonitor] Using GPTAgentModel for agent runs."
+                    )
                     return self._agent_model
                 except Exception as exc:  # noqa: BLE001
                     print(
@@ -538,6 +700,7 @@ class IncidentPipelineMonitor:
     @staticmethod
     def _cerulean_client(*, force_stub: bool = False):
         if force_stub or os.getenv("CERULEAN_STUB") == "1":
+
             class _EmptyCeruleanClient:
                 _is_stub = True
 
@@ -546,7 +709,9 @@ class IncidentPipelineMonitor:
                     *_,
                     **__,
                 ) -> CeruleanQueryResult:
-                    return CeruleanQueryResult(slicks=[], number_matched=0, number_returned=0, links=[])
+                    return CeruleanQueryResult(
+                        slicks=[], number_matched=0, number_returned=0, links=[]
+                    )
 
             return _EmptyCeruleanClient()
         client = CeruleanClient()
@@ -560,8 +725,16 @@ class IncidentPipelineMonitor:
 
     @staticmethod
     def _transition_signature(transition) -> str:
-        ts_peak = transition.incident.ts_peak.isoformat() if transition.incident.ts_peak else transition.at.isoformat()
-        max_oil = f"{transition.incident.oil_stats.max:.6f}" if transition.incident.oil_stats else "0.0"
+        ts_peak = (
+            transition.incident.ts_peak.isoformat()
+            if transition.incident.ts_peak
+            else transition.at.isoformat()
+        )
+        max_oil = (
+            f"{transition.incident.oil_stats.max:.6f}"
+            if transition.incident.oil_stats
+            else "0.0"
+        )
         return f"{ts_peak}:{max_oil}"
 
     @staticmethod
@@ -588,7 +761,9 @@ class IncidentPipelineMonitor:
                 agent_enabled=False,
             )
 
-            result = generate_transitions_from_ndjson(self.data_path, config=seed_config)
+            result = generate_transitions_from_ndjson(
+                self.data_path, config=seed_config
+            )
             for transition in result.transitions:
                 key = self._transition_key(transition)
                 self._seen_transitions.add(key)
@@ -598,22 +773,23 @@ class IncidentPipelineMonitor:
         except Exception as exc:  # noqa: BLE001
             print(f"[IncidentPipelineMonitor] Failed to seed transitions: {exc}")
 
+
 # HTTP server for REST endpoints (incidents, health, etc.)
 class HTTPHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
 
-        if path == '/health':
+        if path == "/health":
             self._send_json({"status": "ok", "streaming": True})
             return
 
-        if path == '/incidents':
+        if path == "/incidents":
             self._send_json(self._collect_incidents())
             return
 
-        if path.startswith('/incidents/'):
-            parts = [segment for segment in path.split('/') if segment]
+        if path.startswith("/incidents/"):
+            parts = [segment for segment in path.split("/") if segment]
             if len(parts) == 2:
                 detail = self._collect_incident_detail(parts[1])
                 if detail is None:
@@ -621,23 +797,27 @@ class HTTPHandler(BaseHTTPRequestHandler):
                 else:
                     self._send_json(detail)
                 return
-            if len(parts) == 3 and parts[2] == 'brief':
-                self._serve_artifact(parts[1], 'incident_brief.json', download_name='incident_brief.json')
+            if len(parts) == 3 and parts[2] == "brief":
+                self._serve_artifact(
+                    parts[1], "incident_brief.json", download_name="incident_brief.json"
+                )
                 return
-            if len(parts) == 3 and parts[2] == 'trace':
-                self._serve_artifact(parts[1], 'agent_trace.jsonl', content_type='application/x-ndjson')
+            if len(parts) == 3 and parts[2] == "trace":
+                self._serve_artifact(
+                    parts[1], "agent_trace.jsonl", content_type="application/x-ndjson"
+                )
                 return
 
-        if path == '/agent-brief':
+        if path == "/agent-brief":
             self._serve_agent_brief_json()
             return
 
-        if path == '/agent-brief/markdown':
+        if path == "/agent-brief/markdown":
             self._serve_agent_brief_markdown()
             return
 
-        if path.startswith('/agent-brief/media/'):
-            slug = path[len('/agent-brief/media/'):]
+        if path.startswith("/agent-brief/media/"):
+            slug = path[len("/agent-brief/media/") :]
             self._serve_agent_brief_media(slug)
             return
 
@@ -645,9 +825,9 @@ class HTTPHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
     # ------------------------------------------------------------------
@@ -656,10 +836,10 @@ class HTTPHandler(BaseHTTPRequestHandler):
 
     def _send_json(self, payload: Dict[str, Any] | list, *, status: int = 200) -> None:
         self.send_response(status)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.send_header('Content-type', 'application/json')
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Content-type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps(payload).encode())
 
@@ -680,7 +860,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
         if not md_path.exists():
             self._send_json({"error": "Agent brief markdown not available"}, status=404)
             return
-        self._send_file(md_path, content_type='text/markdown; charset=utf-8')
+        self._send_file(md_path, content_type="text/markdown; charset=utf-8")
 
     def _serve_agent_brief_media(self, slug: str) -> None:
         media_root = (AGENT_BRIEF_ROOT / "media").resolve()
@@ -691,7 +871,9 @@ class HTTPHandler(BaseHTTPRequestHandler):
         if not target.exists():
             self._send_json({"error": "Media not found"}, status=404)
             return
-        content_type = mimetypes.guess_type(target.name)[0] or 'application/octet-stream'
+        content_type = (
+            mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        )
         self._send_file(target, content_type=content_type)
 
     def _send_file(
@@ -708,12 +890,14 @@ class HTTPHandler(BaseHTTPRequestHandler):
             return
 
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.send_header('Content-type', content_type)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Content-type", content_type)
         if download_name:
-            self.send_header('Content-Disposition', f'attachment; filename="{download_name}"')
+            self.send_header(
+                "Content-Disposition", f'attachment; filename="{download_name}"'
+            )
         self.end_headers()
         self.wfile.write(payload)
 
@@ -762,9 +946,11 @@ class HTTPHandler(BaseHTTPRequestHandler):
                         "incident_id": incident_id,
                         "scenario": cached.get("scenario", "pending_analysis"),
                         "confidence": cached.get("confidence", 0.0),
-                        "summary": cached.get("summary", "Analyzing SeaOWL anomaly…"),
+                        "summary": cached.get("summary", "Analyzing onboard anomaly…"),
                         "ts_peak": cached.get("ts_peak"),
-                        "path": str(artifacts_root / incident_id) if (artifacts_root / incident_id).exists() else "",
+                        "path": str(artifacts_root / incident_id)
+                        if (artifacts_root / incident_id).exists()
+                        else "",
                         "status": cached.get("status", "analyzing"),
                     }
                 else:
@@ -796,7 +982,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
                 "incident_id": incident_id,
                 "scenario": cached_record.get("scenario", "pending_analysis"),
                 "confidence": cached_record.get("confidence", 0.0),
-                "summary": cached_record.get("summary", "Analyzing SeaOWL anomaly…"),
+                "summary": cached_record.get("summary", "Analyzing onboard anomaly…"),
                 "rationale": None,
                 "recommended_actions": [],
                 "followup_scheduled": False,
@@ -853,7 +1039,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
         artifact_name: str,
         *,
         download_name: Optional[str] = None,
-        content_type: str = 'application/json',
+        content_type: str = "application/json",
     ) -> None:
         incident_dir = Path("artifacts") / incident_id
         artifact_path = incident_dir / artifact_name
@@ -868,22 +1054,38 @@ class HTTPHandler(BaseHTTPRequestHandler):
             return
 
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.send_header('Content-type', content_type)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Content-type", content_type)
         if download_name:
-            self.send_header('Content-Disposition', f'attachment; filename="{download_name}"')
+            self.send_header(
+                "Content-Disposition", f'attachment; filename="{download_name}"'
+            )
         self.end_headers()
         self.wfile.write(payload)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Neptune streaming data server")
     pattern_group = parser.add_mutually_exclusive_group()
-    pattern_group.add_argument("--nyc", action="store_true", help="Use NYC SeaOWL stream (default)")
-    pattern_group.add_argument("--gulf", action="store_true", help="Use Gulf/Cerulean SeaOWL stream")
-    parser.add_argument("--data-path", type=Path, help="Explicit path to SeaOWL NDJSON stream")
-    parser.add_argument("--no-agent", action="store_true", help="Disable agent runs (artifacts not generated)")
+    pattern_group.add_argument(
+        "--nyc", action="store_true", help="Use NYC SeaOWL stream (default)"
+    )
+    pattern_group.add_argument(
+        "--gulf", action="store_true", help="Use Gulf/Cerulean SeaOWL stream"
+    )
+    parser.add_argument(
+        "--data-path", type=Path, help="Explicit path to SeaOWL NDJSON stream"
+    )
+    parser.add_argument(
+        "--eco-path", type=Path, help="Explicit path to ECO FL NDJSON stream"
+    )
+    parser.add_argument(
+        "--no-agent",
+        action="store_true",
+        help="Disable agent runs (artifacts not generated)",
+    )
     return parser.parse_args()
 
 
@@ -901,24 +1103,42 @@ async def main():
     data_path = data_path.resolve()
     print(f"📁 Monitoring telemetry file: {data_path}")
     print(f"🤖 Agent runs: {'enabled' if not args.no_agent else 'disabled'}")
+    if args.eco_path is not None:
+        eco_path = args.eco_path
+    elif args.gulf:
+        eco_path = DEFAULT_ECO_FL_PATH_GULF
+    else:
+        eco_path = DEFAULT_ECO_FL_PATH_NYC
 
-    streamer = TelemetryStreamer(data_path)
+    eco_path = eco_path.resolve()
+    print(f"📁 Monitoring ECO FL file: {eco_path}")
+
+    streamer = TelemetryStreamer(
+        data_path,
+        sensor_watch_specs={"eco_fl": (eco_path, "timestamp")},
+        primary_sensor_id="seaowl",
+    )
     incident_monitor = IncidentPipelineMonitor(
         streamer.data_path,
         incident_queue=streamer.incident_queue,
         agent_enabled=not args.no_agent,
+        eco_path=eco_path,
     )
 
     # Start file watcher in background thread
-    file_watcher_thread = threading.Thread(target=streamer.watch_file_changes, daemon=True)
+    file_watcher_thread = threading.Thread(
+        target=streamer.watch_file_changes, daemon=True
+    )
     file_watcher_thread.start()
+
+    streamer.start_sensor_watchers()
 
     # Start pipeline monitor thread
     incident_monitor.start()
 
     # Start HTTP server in background thread
     def run_http_server():
-        httpd = HTTPServer(('', 8000), HTTPHandler)
+        httpd = HTTPServer(("", 8000), HTTPHandler)
         print("HTTP server running on http://localhost:8000")
         httpd.serve_forever()
 
@@ -943,6 +1163,7 @@ async def main():
             print("\n🛑 Shutting down streaming server...")
             streamer.running = False
             incident_monitor.running = False
+
 
 if __name__ == "__main__":
     asyncio.run(main())

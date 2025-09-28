@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, Typography, Space } from 'antd';
-import { AgentBrief } from '../types';
+import { AgentBrief, SensorStatusMap } from '../types';
 
 const { Text } = Typography;
 
@@ -12,6 +12,7 @@ interface Props {
   agentBrief?: AgentBrief | null;
   onOpenAgentBrief?: () => void;
   isBriefLoading?: boolean;
+  sensorStatus?: SensorStatusMap;
 }
 
 const Sidebar: React.FC<Props> = ({
@@ -22,31 +23,52 @@ const Sidebar: React.FC<Props> = ({
   agentBrief = null,
   onOpenAgentBrief,
   isBriefLoading = false,
+  sensorStatus,
 }) => {
-  const sensors = [
+  const statuses = sensorStatus ?? {};
+
+  const formatTimestamp = (value?: string | null) => {
+    if (!value) {
+      return null;
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return parsed.toLocaleTimeString();
+  };
+
+  const sensors: Array<{
+    id: string;
+    name: string;
+    subtitle: string;
+    status?: SensorStatusMap[string];
+    fallbackStreaming?: boolean;
+  }> = [
     {
       id: 'seaowl',
       name: 'SeaOWL',
       subtitle: 'Oil fluorescence',
-      streaming: connectionStatus === 'connected' && isStreaming,
+      status: statuses.seaowl,
+      fallbackStreaming: connectionStatus === 'connected' && isStreaming,
     },
     {
-      id: 'eco-fl',
+      id: 'eco_fl',
       name: 'ECO FL',
-      subtitle: 'Fluorescence',
-      streaming: false,
+      subtitle: 'Chlorophyll & FDOM',
+      status: statuses.eco_fl,
     },
     {
-      id: 'eco-bb',
+      id: 'eco_bb',
       name: 'ECO BB',
       subtitle: 'Backscatter',
-      streaming: false,
+      status: statuses['eco_bb'],
     },
     {
       id: 'acs',
       name: 'ac-s',
       subtitle: 'Absorption & attenuation',
-      streaming: false,
+      status: statuses.acs,
     },
   ];
 
@@ -104,7 +126,10 @@ const Sidebar: React.FC<Props> = ({
           )}
 
           {sensors.map((sensor, idx) => {
-            const indicatorColor = sensor.streaming ? '#22c55e' : '#ef4444';
+            const streaming = sensor.status?.streaming ?? sensor.fallbackStreaming ?? false;
+            const indicatorColor = streaming ? '#22c55e' : '#ef4444';
+            const lastSeen = sensor.status?.last_timestamp;
+            const formatted = lastSeen ? formatTimestamp(lastSeen) : sensor.id === 'seaowl' ? lastUpdateTime : null;
             return (
               <React.Fragment key={sensor.id}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -125,10 +150,10 @@ const Sidebar: React.FC<Props> = ({
                       <Text style={{ color: '#94a3b8', fontSize: '0.7rem' }}>
                         {sensor.subtitle}
                       </Text>
-                      {sensor.id === 'seaowl' && lastUpdateTime && (
+                      {formatted && (
                         <div>
                           <Text style={{ color: '#94a3b8', fontSize: '0.7rem' }}>
-                            Last update: {lastUpdateTime}
+                            Last update: {formatted}
                           </Text>
                         </div>
                       )}

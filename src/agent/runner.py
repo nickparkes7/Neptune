@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Iterable, List, Optional
 
 from anomaly.events import SuspectedSpillEvent
+from anomaly.bloom_detector import BloomSignal, detect_bloom_signal
 from cerulean import (
     CeruleanClient,
     CeruleanQueryResult,
@@ -30,8 +31,13 @@ class AgentConfig:
 
     query_bounds: QueryBounds = field(default_factory=QueryBounds)
     artifact_root: Path = DEFAULT_ARTIFACT_ROOT
-    followup_store: Path = field(default_factory=lambda: Path("data/cerulean/followups.ndjson"))
+    followup_store: Path = field(
+        default_factory=lambda: Path("data/cerulean/followups.ndjson")
+    )
     cerulean_limit_default: int = 100
+    eco_fl_path: Path = field(
+        default_factory=lambda: Path("data/ship/ecofl_live.ndjson")
+    )
 
 
 @dataclass
@@ -59,6 +65,35 @@ def run_agent_for_event(
     now = _ensure_utc(timestamp or datetime.now(timezone.utc))
 
     trace: List[ActionRecord] = []
+
+    bloom_signal: Optional[BloomSignal] = None
+    if cfg.eco_fl_path:
+        try:
+            bloom_signal = detect_bloom_signal(
+                cfg.eco_fl_path,
+                window=timedelta(minutes=15),
+                baseline=timedelta(minutes=10),
+                start=_ensure_utc(event.ts_start),
+                end=_ensure_utc(event.ts_end),
+            )
+            trace.append(
+                ActionRecord(
+                    timestamp=now,
+                    action="eco_fl_analysis",
+                    payload=bloom_signal.to_trace(),
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            trace.append(
+                ActionRecord(
+                    timestamp=now,
+                    action="eco_fl_analysis_error",
+                    payload={"error": str(exc)},
+                )
+            )
+
+    if bloom_signal and bloom_signal.detected:
+        return _run_bloom_playbook(event, cfg, trace, bloom_signal, now)
 
     plan = model.generate_plan(event, cfg.query_bounds)
     trace.append(
@@ -115,7 +150,9 @@ def run_agent_for_event(
         )
     )
 
-    artifact_dir = cfg.artifact_root / (event.event_id or _slugify(event.ts_peak.isoformat()))
+    artifact_dir = cfg.artifact_root / (
+        event.event_id or _slugify(event.ts_peak.isoformat())
+    )
     artifact_dir.mkdir(parents=True, exist_ok=True)
     artifacts: List[Path] = []
 
@@ -157,7 +194,10 @@ def run_agent_for_event(
             ActionRecord(
                 timestamp=_ensure_utc(datetime.now(timezone.utc)),
                 action="followup_scheduled",
-                payload={"task_id": followup.task_id, "run_at": followup.run_at.isoformat()},
+                payload={
+                    "task_id": followup.task_id,
+                    "run_at": followup.run_at.isoformat(),
+                },
             ),
         )
 
@@ -217,7 +257,144 @@ def run_agent_for_event(
     )
 
 
-def _expand_bbox(bbox: tuple[float, float, float, float], padding_km: float) -> tuple[float, float, float, float]:
+def _run_bloom_playbook(
+    event: SuspectedSpillEvent,
+    cfg: AgentConfig,
+    trace: List[ActionRecord],
+    signal: BloomSignal,
+    now: datetime,
+) -> AgentRunResult:
+    artifact_dir = cfg.artifact_root / (
+        event.event_id or _slugify(event.ts_peak.isoformat())
+    )
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    plan = AgentPlan(
+        padding_km=0.0,
+        lookback_hours=0,
+        lookahead_hours=0,
+        min_source_score=0.0,
+        only_active=False,
+        filters=[],
+        sort_by="-max_source_collated_score",
+        limit=0,
+        followup_delay_hours=0,
+        rationale="ECO FL bloom detection; Cerulean query skipped.",
+    )
+    trace.append(
+        ActionRecord(
+            timestamp=now,
+            action="plan_generated",
+            payload=json.loads(plan.json()),
+        )
+    )
+    trace.append(
+        ActionRecord(
+            timestamp=_ensure_utc(datetime.now(timezone.utc)),
+            action="cerulean_skipped",
+            payload={
+                "reason": "eco_fl_bloom_detected",
+                "peak_channel": signal.peak_channel,
+                "peak_z": signal.peak_z,
+            },
+        )
+    )
+
+    summary_payload = signal.to_trace()
+    summary_payload["metrics"] = signal.metrics
+    summary_path = artifact_dir / "eco_fl_summary.json"
+    summary_path.write_text(_json_dumps(summary_payload))
+    artifacts: List[Path] = [summary_path]
+
+    location_lat = signal.lat if signal.lat is not None else event.lat
+    location_lon = signal.lon if signal.lon is not None else event.lon
+    location_desc = (
+        f"{location_lat:.3f}°, {location_lon:.3f}°"
+        if location_lat is not None and location_lon is not None
+        else "current track"
+    )
+    channel_label = (signal.peak_channel or "fluorescence").replace("_", " ")
+    timestamp_desc = (
+        signal.ts_peak.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        if signal.ts_peak
+        else _ensure_utc(event.ts_peak).isoformat().replace("+00:00", "Z")
+    )
+    summary_text = (
+        f"ECO FL indicated a bloom: {channel_label} reached {signal.peak_value:.1f} with z={signal.peak_z:.1f} "
+        f"near {location_desc} around {timestamp_desc}. Cerulean query skipped to avoid oil false alarm."
+    )
+
+    confidence = float(min(1.0, 0.45 + min(signal.peak_z / 25.0, 0.5)))
+    recommended_actions = [
+        f"Collect a water sample near {location_desc} to confirm bloom composition.",
+        "Notify science team and adjust response playbook for algal bloom conditions.",
+        "Maintain heightened ECO FL logging over the next 6 hours to track progression.",
+    ]
+
+    metrics_model = SynopsisMetrics(source_counts={"bloom_signal": 1})
+    synopsis = IncidentSynopsis(
+        scenario="suspected_algal_bloom",
+        confidence=confidence,
+        summary=summary_text,
+        rationale="ECO FL fluorescence spike exceeded bloom threshold; satellite validation deferred.",
+        recommended_actions=recommended_actions,
+        metrics=metrics_model,
+        followup_scheduled=False,
+        followup_eta=None,
+    )
+    synopsis.artifacts["eco_fl_summary"] = str(summary_path)
+
+    result = CeruleanQueryResult(
+        slicks=[], number_matched=0, number_returned=0, links=[]
+    )
+
+    brief_path = write_incident_brief(
+        event,
+        plan=plan,
+        synopsis=synopsis,
+        cerulean=result,
+        artifact_dir=artifact_dir,
+    )
+    artifacts.append(brief_path)
+    synopsis.artifacts.setdefault("incident_brief", str(brief_path))
+
+    trace_path = artifact_dir / "agent_trace.jsonl"
+    with trace_path.open("w", encoding="utf-8") as handle:
+        for entry in trace:
+            handle.write(_json_dumps(entry.model_dump(mode="json")) + "\n")
+    artifacts.append(trace_path)
+    synopsis.artifacts.setdefault("agent_trace", str(trace_path))
+
+    artifact_map = {path.name: str(path) for path in artifacts}
+    synopsis.artifacts.update(artifact_map)
+
+    synopsis_payload = synopsis.model_dump(mode="json")
+    synopsis_payload.setdefault("status", "ready")
+    synopsis_payload["event"] = {
+        "event_id": event.event_id,
+        "ts_start": _ensure_utc(event.ts_start).isoformat().replace("+00:00", "Z"),
+        "ts_end": _ensure_utc(event.ts_end).isoformat().replace("+00:00", "Z"),
+        "ts_peak": _ensure_utc(event.ts_peak).isoformat().replace("+00:00", "Z"),
+        "lat": event.lat,
+        "lon": event.lon,
+    }
+
+    synopsis_path = artifact_dir / "incident_synopsis.json"
+    synopsis_path.write_text(_json_dumps(synopsis_payload))
+    artifacts.append(synopsis_path)
+
+    return AgentRunResult(
+        plan=plan,
+        synopsis=synopsis,
+        cerulean_result=result,
+        artifacts=artifacts,
+        trace_path=trace_path,
+    )
+
+
+def _expand_bbox(
+    bbox: tuple[float, float, float, float], padding_km: float
+) -> tuple[float, float, float, float]:
     min_lon, min_lat, max_lon, max_lat = bbox
     if padding_km <= 0:
         return bbox
