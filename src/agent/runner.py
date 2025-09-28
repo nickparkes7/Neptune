@@ -17,7 +17,7 @@ from cerulean import (
     summarize_slicks,
 )
 
-from .model import AgentModel, RuleBasedAgentModel
+from .model import AgentModel, GPTAgentModel, RuleBasedAgentModel
 from .schemas import ActionRecord, AgentPlan, IncidentSynopsis, QueryBounds
 
 DEFAULT_ARTIFACT_ROOT = Path("artifacts")
@@ -52,7 +52,7 @@ def run_agent_for_event(
 ) -> AgentRunResult:
     """Execute the agent for a single spill event."""
 
-    model = model or RuleBasedAgentModel()
+    model = model or GPTAgentModel()
     cfg = config or AgentConfig()
     client = client or CeruleanClient()
     now = _ensure_utc(timestamp or datetime.now(timezone.utc))

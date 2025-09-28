@@ -60,9 +60,10 @@ uv sync
    uv run python -m unittest tests.test_hybrid_scorer tests.test_event_trigger tests.test_incident_manager tests.test_pipeline tests.test_tasker
    ```
 
-8. **Run agent orchestration** — feeds a stored `SuspectedSpillEvent` through the GPT-5 agent (rule-based fallback by default).
+8. **Run agent orchestration** — feeds a stored `SuspectedSpillEvent` through the GPT-5 agent (requires `OPENAI_API_KEY`).
 
    ```cmd
+   export OPENAI_API_KEY=...  # GPT-5 key
    uv run python tools/run_agent.py tests/data/sample_event.json --artifact-root artifacts/agent_demo --followup-store data/cerulean/followups.ndjson
    ```
 

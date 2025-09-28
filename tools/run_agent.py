@@ -8,7 +8,7 @@ from pathlib import Path
 
 from anomaly.events import SuspectedSpillEvent
 
-from agent import AgentConfig, RuleBasedAgentModel, run_agent_for_event
+from agent import AgentConfig, GPTAgentModel, RuleBasedAgentModel, run_agent_for_event
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -16,12 +16,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("event", type=Path, help="Path to a SuspectedSpillEvent JSON file")
     parser.add_argument("--artifact-root", type=Path, default=AgentConfig().artifact_root)
     parser.add_argument("--followup-store", type=Path, default=AgentConfig().followup_store)
+    parser.add_argument(
+        "--rule-based",
+        action="store_true",
+        help="Use the deterministic fallback model instead of GPT-5 (offline/testing).",
+    )
     args = parser.parse_args(argv)
 
     payload = json.loads(args.event.read_text())
     event = SuspectedSpillEvent.model_validate(payload)
     config = AgentConfig(artifact_root=args.artifact_root, followup_store=args.followup_store)
-    result = run_agent_for_event(event, model=RuleBasedAgentModel(), config=config)
+    model = RuleBasedAgentModel() if args.rule_based else GPTAgentModel()
+    result = run_agent_for_event(event, model=model, config=config)
 
     print(json.dumps({
         "plan": json.loads(result.plan.json()),
