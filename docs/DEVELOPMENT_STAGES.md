@@ -40,16 +40,17 @@ Below is a tight, staged build that gets you a slick MVP quickly and then layers
    - Run a **fast dark-spot + texture** detector to outline candidate slick polygons in each pass.
    - Link polygons through time to estimate **drift vector** and **growth**.
 
-4. **Agent explanations & actionables**
+4. **Agent orchestration (GPT‑5) & actionables**
 
-   - GPT-5 generates a short “incident brief”: location, magnitude, confidence, probable **origin window**, **likely transport direction**, and **recommended waypoints** for follow-up sampling.
-   - One-click PDF export + JSON handoff.
+   - GPT‑5 selects Cerulean query parameters (AOI padding, time window, filters, sort) and calls tools.
+   - Fuses onboard stats + Cerulean metadata into a typed `IncidentSynopsis` with a scenario label (Validation vs First Discovery), confidence, rationale, and recommended actions (including `schedule_followup` for first‑discovery).
+   - Saves artifacts: `cerulean.geojson`, `cerulean_summary.json`, `incident_synopsis.json`, and an action trace.
 
 ## Streamlit MVP UI
 
-- **Map:** live ship track, SeaOWL anomaly markers, satellite polygons (only after trigger).
+- **Map:** live ship track, SeaOWL anomaly markers, Cerulean polygons (only after trigger).
 - **Timeseries:** oil-fluor signal + context channels.
-- **Incident pane:** origin/propagation summary, confidence, waypoints.
+- **Incident pane:** scenario, confidence, summary, waypoints; shows scheduled follow‑up when first‑discovery.
 - **Chat (GPT-5):** “Explain this event,” “show most likely source area,” “propose 3 sampling stops in the next 2 hrs.”
 
 ## Why this nails your narrative
@@ -117,8 +118,9 @@ When you move beyond a single sensor + a couple satellite layers, pandas/xarray 
 
 - [ ] **SeaOWL stream sim** (readings at 1 Hz; inject events).
 - [ ] **Anomaly scorer** (rolling baseline + MAD; configurable τ).
-- [ ] **Cerulean query stub**: `query_cerulean(aoi,time_range)` returning zero or more polygons.
-- [ ] **Follow‑up scheduler**: `schedule_followup(event_id, run_at)` to re‑query Cerulean after the next daily update.
+- [x] **Cerulean client**: `query_cerulean(aoi,time_range)` returning polygons + metadata.
+- [x] **Follow‑up scheduler**: `schedule_followup(event_id, run_at)` to re‑query Cerulean after the next daily update.
+- [ ] **Agent orchestrator (GPT‑5)**: parameter selection → tool calls → `IncidentSynopsis` + artifacts.
 
 ## Phase 2/Extension (not in MVP)
 
@@ -145,8 +147,8 @@ When you move beyond a single sensor + a couple satellite layers, pandas/xarray 
 
 1. **Idle**: SeaOWL timeseries humming along (cheap, continuous).
 2. **Spike**: oil channel rises → alert.
-3. **Agent fires tasking**: grabs recent S-1 stack, outlines polygons, shows earliest appearance (origin).
-4. **Propagation**: shows drift arrow and a 2-pass comparison; proposes sampling waypoints.
+3. **Agent queries Cerulean**: overlays polygons + source hints if found; else explains first‑discovery and schedules a recheck.
+4. **Actionables**: proposes sampling waypoints; shows synopsis + confidence.
 5. **Brief**: click to export PDF & JSON.
 6. (If time) **fvdb button**: “Run fused-cube analysis (pilot)” → shows aligned tensors over the event and a tiny model score.
 
