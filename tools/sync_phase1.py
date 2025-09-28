@@ -8,6 +8,8 @@ import yaml
 
 STATUS = Path("status/phase1.yml")
 PHASE1 = Path("PHASE1.md")
+if not PHASE1.exists():
+    PHASE1 = Path("docs/PHASE1.md")
 
 BEGIN = "<!-- STATUS:PHASE1:BEGIN -->"
 END = "<!-- STATUS:PHASE1:END -->"
