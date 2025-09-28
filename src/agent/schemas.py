@@ -15,10 +15,10 @@ ScenarioLabel = Literal["validation_context", "first_discovery"]
 class QueryBounds(CompatBaseModel):
     """Configurable limits for agent-selected Cerulean parameters."""
 
-    padding_km_min: float = 5.0
-    padding_km_max: float = 30.0
-    lookback_hours_min: int = 12
-    lookback_hours_max: int = 96
+    padding_km_min: float = 8.0
+    padding_km_max: float = 12.0
+    lookback_hours_min: int = 24
+    lookback_hours_max: int = 36
     lookahead_hours_min: int = 0
     lookahead_hours_max: int = 48
     min_source_score_min: float = 0.0
