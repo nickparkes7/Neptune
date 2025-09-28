@@ -1,0 +1,2 @@
+# Default configuration for Cerulean integrations (Phase 1).
+followup_log: data/cerulean/followups.ndjson

@@ -60,6 +60,11 @@ uv sync
    uv run python -m unittest tests.test_hybrid_scorer tests.test_event_trigger tests.test_incident_manager tests.test_pipeline tests.test_tasker
    ```
 
+## Cerulean Follow-ups
+
+- Scheduled re-query tasks are stored at `data/cerulean/followups.ndjson` (see `configs/cerulean.yml`).
+- Run `uv run pytest -q tests/test_cerulean_followup.py` to exercise the scheduling utilities.
+
 ## Status Tracking
 
 Update the Phase 1 tracker when starting/stopping tasks, then sync the public status block.

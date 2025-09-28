@@ -57,11 +57,11 @@ steps:
   artifacts: []
 - id: 7_linking
   name: Follow-up scheduling + log
-  status: pending
-  owner: null
-  started: null
-  finished: null
-  notes: Schedule next-day Cerulean re-query and persist planned actions.
+  status: done
+  owner: nicholas
+  started: '2025-09-28T00:27:34Z'
+  finished: '2025-09-28T00:29:58Z'
+  notes: Follow-up scheduler (JSONL log, due queries, tests)
   artifacts: []
 - id: 8_agent
   name: Agent orchestration + tools

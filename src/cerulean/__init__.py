@@ -9,6 +9,14 @@ from .client import (
     build_feature_collection,
     summarize_slicks,
 )
+from .followup import (
+    FollowUpError,
+    FollowUpTask,
+    iter_due_followups,
+    load_followups,
+    schedule_followup,
+    update_followup_status,
+)
 
 __all__ = [
     "CeruleanClient",
@@ -17,5 +25,11 @@ __all__ = [
     "CeruleanSlick",
     "CeruleanSummary",
     "build_feature_collection",
+    "FollowUpError",
+    "FollowUpTask",
+    "iter_due_followups",
+    "load_followups",
+    "schedule_followup",
     "summarize_slicks",
+    "update_followup_status",
 ]
