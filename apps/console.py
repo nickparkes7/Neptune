@@ -224,7 +224,7 @@ def _render_timeseries(df: pd.DataFrame) -> None:
 
 
 def _render_track(df: pd.DataFrame) -> None:
-    st.subheader("Ship Track (recent)")
+    st.subheader("Ship Track")
     if df.empty or ("lat" not in df.columns) or ("lon" not in df.columns):
         st.info("No geolocated samples yet…")
         return
@@ -336,7 +336,7 @@ def _render_incident_detail(incident_id: Optional[str]) -> None:
 def _render_sidebar() -> tuple[Path, bool]:
     # No view selector - navigation is handled by incident selection
 
-    st.sidebar.header("Live Source")
+    st.sidebar.header("Onboard Sensors")
     live_path = Path(st.sidebar.text_input("NDJSON path", value=str(DATA_PATH)))
 
     st.sidebar.header("Simulator (optional)")

@@ -1,0 +1,123 @@
+import React from 'react';
+import { Card, Typography, Space, Divider } from 'antd';
+
+const { Text } = Typography;
+
+interface Props {
+  lastUpdateTime: string;
+  connectionStatus?: 'connecting' | 'connected' | 'disconnected' | 'error';
+  isStreaming?: boolean;
+}
+
+const Sidebar: React.FC<Props> = ({
+  lastUpdateTime,
+  connectionStatus = 'disconnected',
+  isStreaming = false,
+}) => {
+  const sensors = [
+    {
+      id: 'seaowl',
+      name: 'SeaOWL',
+      subtitle: 'Oil fluorescence',
+      streaming: connectionStatus === 'connected' && isStreaming,
+    },
+    {
+      id: 'eco-fl',
+      name: 'ECO FL',
+      subtitle: 'Fluorescence',
+      streaming: false,
+    },
+    {
+      id: 'eco-bb',
+      name: 'ECO BB',
+      subtitle: 'Backscatter',
+      streaming: false,
+    },
+    {
+      id: 'acs',
+      name: 'ac-s',
+      subtitle: 'Absorption & attenuation',
+      streaming: false,
+    },
+  ];
+
+  return (
+    <div>
+      <h2 style={{ marginBottom: '1rem', color: '#e2e8f0' }}>
+        Onboard Sensors
+      </h2>
+
+      <Card
+        className="sidebar"
+        style={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          {sensors.map((sensor, idx) => {
+            const indicatorColor = sensor.streaming ? '#22c55e' : '#ef4444';
+            return (
+              <React.Fragment key={sensor.id}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div
+                    style={{
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      backgroundColor: indicatorColor,
+                      boxShadow: sensor.streaming ? '0 0 6px rgba(34, 197, 94, 0.6)' : '0 0 6px rgba(239, 68, 68, 0.4)'
+                    }}
+                  />
+                  <div>
+                    <Text style={{ color: '#e2e8f0', fontSize: '0.875rem', fontWeight: 500 }}>
+                      {sensor.name}
+                    </Text>
+                    <div>
+                      <Text style={{ color: '#94a3b8', fontSize: '0.7rem' }}>
+                        {sensor.subtitle}
+                      </Text>
+                      {sensor.id === 'seaowl' && lastUpdateTime && (
+                        <div>
+                          <Text style={{ color: '#94a3b8', fontSize: '0.7rem' }}>
+                            Last update: {lastUpdateTime}
+                          </Text>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </Space>
+      </Card>
+
+      <h2 style={{ margin: '1.5rem 0 1rem', color: '#e2e8f0' }}>
+        External Sources
+      </h2>
+
+      <Card
+        className="sidebar"
+        style={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span role="img" aria-label="Satellite" style={{ fontSize: '1.1rem' }}>
+              🛰️
+            </span>
+            <div>
+              <Text style={{ color: '#e2e8f0', fontSize: '0.875rem', fontWeight: 500 }}>
+                Sentinel-1
+              </Text>
+              <div>
+                <Text style={{ color: '#94a3b8', fontSize: '0.7rem' }}>
+                  Synthetic aperture radar
+                </Text>
+              </div>
+            </div>
+          </div>
+        </Space>
+      </Card>
+    </div>
+  );
+};
+
+export default Sidebar;

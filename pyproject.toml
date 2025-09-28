@@ -18,6 +18,7 @@ dependencies = [
   "streamlit>=1.38.0",
   "pydeck>=0.8.0",
   "streamlit-autorefresh>=1.0.1",
+  "websockets>=15.0.1",
 ]
 
 [tool.setuptools]

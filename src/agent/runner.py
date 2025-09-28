@@ -186,14 +186,27 @@ def run_agent_for_event(
     artifacts.append(brief_path)
     synopsis.artifacts.setdefault("incident_brief", str(brief_path))
 
-    synopsis_path = artifact_dir / "incident_synopsis.json"
-    synopsis_path.write_text(_json_dumps(synopsis.model_dump(mode="json")))
-    artifacts.append(synopsis_path)
-
     trace_path = artifact_dir / "agent_trace.jsonl"
     with trace_path.open("w", encoding="utf-8") as handle:
         for entry in trace:
             handle.write(_json_dumps(entry.model_dump(mode="json")) + "\n")
+    artifacts.append(trace_path)
+    synopsis.artifacts.setdefault("agent_trace", str(trace_path))
+
+    synopsis_payload = synopsis.model_dump(mode="json")
+    synopsis_payload.setdefault("status", "ready")
+    synopsis_payload["event"] = {
+        "event_id": event.event_id,
+        "ts_start": _ensure_utc(event.ts_start).isoformat().replace("+00:00", "Z"),
+        "ts_end": _ensure_utc(event.ts_end).isoformat().replace("+00:00", "Z"),
+        "ts_peak": _ensure_utc(event.ts_peak).isoformat().replace("+00:00", "Z"),
+        "lat": event.lat,
+        "lon": event.lon,
+    }
+
+    synopsis_path = artifact_dir / "incident_synopsis.json"
+    synopsis_path.write_text(_json_dumps(synopsis_payload))
+    artifacts.append(synopsis_path)
 
     return AgentRunResult(
         plan=plan,
