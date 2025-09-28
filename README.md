@@ -1,6 +1,6 @@
 # Neptune
 
-This repo contains the Phase 1 prototype for the Neptune spill response pipeline. The workflow revolves around a synthetic SeaOWL stream, anomaly scoring, and visual artifacts that help interpret the signal.
+This repo contains the Phase 1 prototype for the Neptune spill response pipeline. The workflow revolves around a synthetic SeaOWL stream, anomaly scoring, and visual artifacts that help interpret the signal. Minimal update: after a SeaOWL anomaly, the agent first performs a lightweight Cerulean query for recent satellite‑detected slicks; if none are found we characterize with onboard data only, mark it as a "first discovery," and schedule a next‑day Cerulean re‑query. Direct satellite fetching is retained as a future extension for data layers not covered by Cerulean (e.g., algal blooms), not as a fallback.
 
 ## Prerequisites
 

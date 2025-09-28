@@ -48,20 +48,20 @@ steps:
     CLI + tests=test_tasker.py
   artifacts: []
 - id: 6_detector
-  name: SAR slick detector
+  name: Cerulean ingestion & overlay
   status: pending
   owner: null
   started: null
   finished: null
-  notes: null
+  notes: Ingest Cerulean polygons + source hints; display overlays and stats.
   artifacts: []
 - id: 7_linking
-  name: Temporal linking + drift
+  name: Follow-up scheduling + log
   status: pending
   owner: null
   started: null
   finished: null
-  notes: null
+  notes: Schedule next-day Cerulean re-query and persist planned actions.
   artifacts: []
 - id: 8_agent
   name: Agent orchestration + tools

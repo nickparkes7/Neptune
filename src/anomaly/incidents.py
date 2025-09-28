@@ -20,7 +20,7 @@ __all__ = [
 ]
 
 
-@dataclass(slots=True)
+@dataclass
 class IncidentManagerConfig:
     """Tunable parameters for :class:`IncidentManager`."""
 
@@ -40,7 +40,7 @@ class IncidentManagerConfig:
             raise ValueError("clear_hold_s must be >= merge_gap_s to avoid re-arm thrash")
 
 
-@dataclass(slots=True)
+@dataclass
 class IncidentTransition:
     """Lifecycle notification emitted by the incident manager."""
 
@@ -52,7 +52,7 @@ class IncidentTransition:
     allow_tasking: bool = False
 
 
-@dataclass(slots=True)
+@dataclass
 class _ContextAccumulator:
     min: float
     max: float

@@ -15,7 +15,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
 
-from pydantic import BaseModel, Field, validator
+from pydantic import Field, validator
+
+from common.pydantic_compat import CompatBaseModel
 
 DEFAULT_CATALOG = Path("configs/s1_catalog.json")
 
@@ -24,7 +26,7 @@ DEFAULT_CATALOG = Path("configs/s1_catalog.json")
 # Models
 # ---------------------------------------------------------------------------
 
-class SceneRef(BaseModel):
+class SceneRef(CompatBaseModel):
     """Metadata describing a locally staged Sentinel-1 scene."""
 
     scene_id: str = Field(..., description="Sentinel scene identifier")
@@ -59,7 +61,7 @@ class SceneRef(BaseModel):
         json_encoders = {Path: lambda p: str(p)}
 
 
-class TaskRequest(BaseModel):
+class TaskRequest(CompatBaseModel):
     """AOI and time window describing a Sentinel-1 tasking request."""
 
     bbox: Tuple[float, float, float, float]

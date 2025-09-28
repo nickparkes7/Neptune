@@ -27,14 +27,16 @@ Below is a tight, staged build that gets you a slick MVP quickly and then layers
 2. **Agent-in-the-loop trigger**
 
    - When score > τ for ≥ N seconds, the **GPT-5 agent** is invoked with a “suspected spill” event (lat/lon, time, sensor snippets, wind/current if available).
-   - The agent decides to **call a SatelliteTasking tool** with a tight spatiotemporal envelope:
+   - New: The first decision is a lightweight call to `query_cerulean(aoi, time_range≈48h)` to ask whether any recent satellite‑detected slicks exist around the event. This preserves the original trigger semantics while avoiding unnecessary downloads.
+   - If Cerulean returns matching slick polygons/metadata, the agent enters the “Validation & Contextualization” playbook (use polygons + candidate sources directly). If nothing is returned, the agent stays in an onboard‑only flow, explicitly notes a “first discovery,” and **schedules a follow‑up Cerulean check** after the next model/data refresh (e.g., +24h). No direct satellite processing is done in Phase 1.
+   - Optionally (future extension, out of Phase 1): the system can call a SatelliteTasking tool to fetch raw scenes for data layers not covered by Cerulean (e.g., algal bloom via S2). This is not used in the MVP.
 
      - **Historical window** (e.g., −7 days → now) to find the **origin**.
      - **Forward window** (next pass predictions) to track **propagation**.
 
-3. **Targeted satellite fetch** (on demand)
+3. **Targeted satellite fetch** (future extension)
 
-   - Pull a **small stack**: prior S-1 passes along the ship track and up-current sector; nearest post-trigger pass when available.
+   - Not part of Phase 1 for oil slicks. Retained as a future capability for other modalities (e.g., Sentinel‑2 for blooms) or for research comparisons.
    - Run a **fast dark-spot + texture** detector to outline candidate slick polygons in each pass.
    - Link polygons through time to estimate **drift vector** and **growth**.
 
@@ -93,9 +95,13 @@ When you move beyond a single sensor + a couple satellite layers, pandas/xarray 
 **Phase 1 tools**
 
 - `get_ship_window(start, end, bbox)` → SeaOWL snippets & stats.
-- `task_satellite(aoi, time_range, sensors=['S1'])` → returns scene IDs and rasters.
-- `detect_slicks(rasters)` → polygons + scores.
-- `make_brief(event_id, polygons, winds)` → PDF/JSON.
+- `query_cerulean(aoi, time_range≈'48h')` → returns recent satellite‑detected slick polygons + source hints (vessel/platform/dark).
+- `schedule_followup(event_id, run_at)` → records a next‑day Cerulean re‑query; the agent will action it when due.
+- `make_brief(event_id, cerulean_polygons, winds, notes)` → PDF/JSON.
+
+**Future extension tools (not used in P1 for oil)**
+- `task_satellite(aoi, time_range, sensors=['S1','S2'])` → raw scenes for modalities not covered by Cerulean (e.g., S2 for blooms).
+- `detect_slicks(rasters)` → local SAR/optical processing for research comparisons.
 
 **Phase 3–4 additions**
 
@@ -111,7 +117,12 @@ When you move beyond a single sensor + a couple satellite layers, pandas/xarray 
 
 - [ ] **SeaOWL stream sim** (readings at 1 Hz; inject events).
 - [ ] **Anomaly scorer** (rolling baseline + MAD; configurable τ).
-- [ ] **Satellite tasker stub**: function that returns pre-downloaded S-1 tiles for aoi/time.
+- [ ] **Cerulean query stub**: `query_cerulean(aoi,time_range)` returning zero or more polygons.
+- [ ] **Follow‑up scheduler**: `schedule_followup(event_id, run_at)` to re‑query Cerulean after the next daily update.
+
+## Phase 2/Extension (not in MVP)
+
+- [ ] **Satellite tasker stub** for non‑oil layers (e.g., S2 for blooms) and research comparisons.
 - [ ] **SAR slick detector**: dark-spot threshold + simple texture filters → polygon.
 - [ ] **Streamlit app**: live timeseries, map, incident panel, GPT-5 chat.
 - [ ] **Agent prompt + tools** wired to the above; one-click PDF brief.

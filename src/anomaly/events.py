@@ -11,7 +11,9 @@ from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from common.pydantic_compat import CompatBaseModel
 
 __all__ = [
     "ChannelStats",
@@ -24,7 +26,7 @@ __all__ = [
 ]
 
 
-class ChannelStats(BaseModel):
+class ChannelStats(CompatBaseModel):
     """Summary statistics for a single scalar channel."""
 
     min: float = Field(..., description="Minimum observed value during the event")
@@ -40,7 +42,7 @@ class OilStats(ChannelStats):
     mean_z: float = Field(..., description="Mean effective z-score during the event")
 
 
-class SuspectedSpillEvent(BaseModel):
+class SuspectedSpillEvent(CompatBaseModel):
     """Structured representation of an onboard anomaly trigger."""
 
     event_id: str = Field(..., description="Stable identifier for the event")

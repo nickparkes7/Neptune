@@ -2,6 +2,7 @@
 
 - Executes the Phase 1 scope in `docs/DEVELOPMENT_STAGES.md`.
 - Focus: continuous SeaOWL monitoring, on-demand Sentinel‑1 pulls, fast SAR slick detection, agent brief, Streamlit UI.
+- Minimal update: after a SeaOWL anomaly, the agent first calls `query_cerulean(aoi, last≈48h)`. If Cerulean returns polygons/source hints, we use them for validation/context. If it returns nothing, we characterize with onboard data only, mark the situation as “first discovery,” and schedule a next-day Cerulean re-query after the model updates. No direct satellite processing in Phase 1; the satellite pathway is kept as a future extension for other data layers (e.g., algal blooms).
 
 <!-- STATUS:PHASE1:BEGIN -->
 
@@ -14,8 +15,8 @@ Progress: 5/12 steps done · 0 in progress · 0 blocked
 | 3_anomaly | done | nicholas | Hybrid oil alert implemented; plots in artifacts/hybrid; test=tests/test_hybrid_scorer.py |
 | 4_events | done | nicholas | End-to-end anomaly trigger: schema (src/anomaly/events.py), incident manager + pipeline (src/anomaly/incidents.py, src/anomaly/pipeline.py), CLI tools/run_event_trigger.py + tools/run_incident_pipeline.py; tests=test_event_trigger.py,test_incident_manager.py,test_pipeline.py |
 | 5_tasker | done | nicholas | Sentinel-1 tasker module (src/satellite/tasker.py); catalog=configs/s1_catalog.json; CLI + tests=test_tasker.py |
-| 6_detector | pending |  |  |
-| 7_linking | pending |  |  |
+| 6_detector | pending |  | Ingest Cerulean polygons + source hints; display overlays and stats. |
+| 7_linking | pending |  | Schedule next-day Cerulean re-query and persist planned actions. |
 | 8_agent | pending |  |  |
 | 9_brief | pending |  |  |
 | 10_streamlit | pending |  |  |
