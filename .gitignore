@@ -5,6 +5,9 @@ __pycache__/
 # Virtual environments
 .venv/
 
+# Environment variables
+.env
+
 # Data outputs
 data/
 !tests/data/
